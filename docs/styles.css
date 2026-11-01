@@ -69,7 +69,6 @@ code { padding: 1px 6px; background: #000; color: var(--accent-2); }
 
 /* ---- pixel grass divider ---- */
 .ground { height: 48px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='48' shape-rendering='crispEdges'%3E%3Cpath fill='%23161008' d='M0 0h64v48H0z'/%3E%3Cpath fill='%2358a638' d='M0 0h64v8H0z'/%3E%3Cpath fill='%2345862c' d='M0 8h8v4H0zM16 8h12v8H16zM40 8h8v4h-8zM52 8h12v4H52z'/%3E%3Cpath fill='%236b4a2b' d='M0 16h64v32H0z'/%3E%3Cpath fill='%2358a638' d='M0 8h4v4H0z'/%3E%3Cpath fill='%235a3d22' d='M4 20h8v8H4zM28 24h8v8h-8zM48 20h8v4h-8zM12 36h12v8H12zM44 36h8v8h-8z'/%3E%3Cpath fill='%237d5834' d='M20 18h4v4h-4zM40 28h4v4h-4zM8 32h4v4H8zM56 32h4v4h-4zM30 40h4v4h-4z'/%3E%3C/svg%3E") repeat-x 0 0 / 64px 48px; image-rendering: pixelated; border-top: 4px solid #000; border-bottom: 4px solid #000; }
-.ground.flip { transform: scaleY(-1); }
 .ground.foot { margin-bottom: 36px; }
 
 /* ---- shared section pieces ---- */
