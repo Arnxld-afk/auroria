@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Concept A: Stage</title><link rel="icon" href="assets/flame.ico"><link rel="stylesheet" href="shared.css">
+<style>
+/* A: the wordmark and PLAY stay where they are; a "jump back in" dock of real profiles sits under them. */
+.hero { position: absolute; z-index: 4; left: 150px; top: 50%; transform: translateY(-62%); max-width: 560px; }
+.meta { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: var(--soft); }
+.meta .sep { opacity: .4; }
+.brand { margin: 8px 0 22px; font-family: var(--display); font-size: clamp(64px, 9vw, 112px); font-weight: 800; letter-spacing: .06em; line-height: .95; text-shadow: 0 8px 40px rgba(0,0,0,.55); }
+.cta { display: flex; align-items: center; gap: 22px; }
+.profile-link { background: none; border: 0; text-align: left; padding: 0; }
+.profile-link small { display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: var(--muted); }
+.profile-link span { font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+
+.dock { position: absolute; z-index: 4; left: 150px; bottom: 34px; display: flex; gap: 12px; align-items: stretch; }
+.dock-label { position: absolute; top: -26px; left: 2px; }
+.pcard { width: 214px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(12px); text-align: left; transition: transform .25s var(--ease), border-color .2s, background .2s; }
+.pcard:hover { transform: translateY(-3px); border-color: var(--line-2); background: rgba(24,16,10,.85); }
+.pcard.sel { border-color: var(--accent); }
+.pcard .tile-ico { width: 44px; height: 44px; font-size: 16px; border-radius: 12px; }
+.pcard b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.pcard small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.pcard .tag { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 3px 7px; border-radius: 6px; background: rgba(240,127,42,.18); color: #ffb27a; }
+.pcard.add { width: 60px; justify-content: center; border-style: dashed; color: var(--muted); font-size: 26px; font-weight: 300; }
+
+.character { right: 7%; bottom: 14px; }
+.character .btn { margin-top: -50px; position: relative; z-index: 4; }
+.viewer3d { margin-bottom: 0; }
+</style></head>
+<body><div class="app">
+  <div class="scene"></div><div class="shade"></div>
+  <nav class="rail">
+    <div class="logo"><img src="assets/flame.ico" alt=""></div>
+    <button class="nav active"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+    <button class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/></svg>Profiles</button>
+    <button class="nav"><svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></svg>Mods</button>
+    <button class="nav"><svg viewBox="0 0 24 24"><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-1 2-7 2-8 0z"/></svg>Skins</button>
+    <button class="nav settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></button>
+  </nav>
+  <div class="account"><button class="chip"><span class="head"></span>Arnxld<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></div>
+
+  <section class="hero">
+    <div class="meta rise"><span class="dot"></span><span>1.21.1</span><span class="sep">·</span><span>Fabric</span><span class="sep">·</span><span>38 mods</span></div>
+    <h1 class="brand rise" style="animation-delay:.08s">AURORIA</h1>
+    <div class="cta rise" style="animation-delay:.16s">
+      <button class="play"><svg viewBox="0 0 14 16"><path d="M1 1l12 7-12 7z"/></svg>PLAY</button>
+      <button class="profile-link"><small>PROFILE</small><span>Auroria Survival <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span></button>
+    </div>
+  </section>
+
+  <div class="dock rise" style="animation-delay:.3s">
+    <div class="eyebrow dock-label">Jump back in</div>
+    <button class="pcard sel"><span class="tile-ico" style="background:#f07f2a">AS</span><span><b>Auroria Survival</b><small>1.21.1 · Played today</small></span></button>
+    <button class="pcard"><span class="tile-ico" style="background:#4fa3e8">FO</span><span><b>Fabulously Optimized</b><small>1.21.11 · 2 days ago</small></span></button>
+    <button class="pcard"><span class="tile-ico" style="background:#5fb34a">CB</span><span><b>Creative Build</b><small>1.20.4 · Last week</small></span></button>
+    <button class="pcard add" aria-label="New profile">+</button>
+  </div>
+
+  <div class="character rise" style="animation-delay:.2s">
+    <div class="viewer3d" data-w="440" data-h="560" data-zoom="0.84" data-cx="0.85" data-cy="0.06"></div>
+    <button class="btn">Change skin</button>
+  </div>
+</div>
+<script src="assets/skinview3d.js"></script><script src="shared.js"></script>
+</body></html>

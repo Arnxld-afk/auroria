@@ -1,0 +1,56 @@
+{
+  "brand": "AURORIA",
+  "microsoftClientId": "",
+  "remoteConfigUrl": "",
+  "clientModUrls": {},
+  "servers": [
+    {
+      "id": "survival",
+      "name": "Auroria Survival",
+      "description": "Survival with handpicked mods, custom biomes and weekly events.",
+      "address": "",
+      "version": "1.20.1",
+      "loader": "fabric",
+      "mods": [],
+      "tags": [
+        "survival"
+      ],
+      "badge": "",
+      "color": "#f07f2a",
+      "loaderVersion": "",
+      "client": true
+    },
+    {
+      "id": "skyblock",
+      "name": "Auroria Skyblock",
+      "description": "Start on a floating island and build outwards.",
+      "address": "",
+      "version": "1.20.4",
+      "loader": "fabric",
+      "mods": [],
+      "tags": [
+        "skyblock"
+      ],
+      "badge": "NEW",
+      "color": "#4a8fe0",
+      "loaderVersion": "",
+      "client": true
+    },
+    {
+      "id": "creative",
+      "name": "Creative Build",
+      "description": "Unlimited blocks, plot worlds, no mods needed.",
+      "address": "",
+      "version": "1.21",
+      "loader": "vanilla",
+      "mods": [],
+      "tags": [
+        "creative"
+      ],
+      "badge": "",
+      "color": "#5fb34a",
+      "loaderVersion": "",
+      "client": true
+    }
+  ]
+}

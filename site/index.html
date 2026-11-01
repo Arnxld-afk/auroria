@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auroria Launcher</title>
+<meta name="description" content="A Minecraft: Java Edition launcher for Windows. Profiles for every version and loader, a built-in client with a movable HUD, mods, and a 3D skin viewer. One file, no installer.">
+<link rel="icon" href="assets/flame.ico">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="mark" href="#top" aria-label="Auroria home"><img src="assets/flame.ico" alt="" width="30" height="30"><span>AURORIA</span></a>
+  <nav aria-label="Sections">
+    <a href="#profiles">Profiles</a>
+    <a href="#client">Client</a>
+    <a href="#mods">Mods and skins</a>
+    <a href="#download" class="top-dl">Download</a>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="hero-photo" aria-hidden="true"></div>
+    <div class="hero-copy">
+      <p class="meta"><span class="dot"></span>Minecraft: Java Edition, Windows 10 and 11</p>
+      <h1>Every world, mod and skin. One orange window.</h1>
+      <p class="lede">Auroria is a Minecraft launcher that keeps each setup in its own profile, ships with a fast client built in, and installs as a single file.</p>
+      <div class="cta">
+        <a class="play" href="Auroria.exe" download><svg viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z"/></svg>Download for Windows</a>
+        <a class="ghost" href="#client">See the client</a>
+      </div>
+      <p class="fine">Auroria.exe, 86 MB. No installer, no account on this site.</p>
+    </div>
+    <div class="character">
+      <div class="viewer3d" data-w="420" data-h="540" data-zoom="0.84" data-cx="0.85" data-cy="0.06"></div>
+      <p class="hint">Drag to turn</p>
+    </div>
+  </section>
+
+  <section class="band" id="profiles">
+    <div class="band-head">
+      <h2>One profile per way you play</h2>
+      <p>A profile is its own Minecraft version, loader, memory setting and folder for mods, worlds and screenshots. Switching never touches the others.</p>
+    </div>
+    <div class="profiles">
+      <article class="profile" style="--c:#f07f2a">
+        <span class="tile">AS</span>
+        <div><h3>Auroria Survival</h3><p>Handpicked mods, custom biomes, weekly events.</p></div>
+        <dl><dt>Version</dt><dd>1.20.1</dd><dt>Loader</dt><dd>Fabric</dd></dl>
+      </article>
+      <article class="profile" style="--c:#4a8fe0">
+        <span class="tile">SB</span>
+        <div><h3>Auroria Skyblock</h3><p>Start on a floating island and build outwards.</p></div>
+        <dl><dt>Version</dt><dd>1.20.4</dd><dt>Loader</dt><dd>Fabric</dd></dl>
+      </article>
+      <article class="profile" style="--c:#5fb34a">
+        <span class="tile">CB</span>
+        <div><h3>Creative Build</h3><p>Unlimited blocks and plot worlds. No mods needed.</p></div>
+        <dl><dt>Version</dt><dd>1.21</dd><dt>Loader</dt><dd>Vanilla</dd></dl>
+      </article>
+    </div>
+    <ul class="facts">
+      <li><b>Every version.</b> All releases, snapshots, betas and alphas from Mojang's list.</li>
+      <li><b>Five loaders.</b> Vanilla, Fabric, Quilt, Forge and NeoForge.</li>
+      <li><b>Joins for you.</b> Set a server on a profile and Play drops you straight in on 1.20 and newer.</li>
+    </ul>
+  </section>
+
+  <section class="client" id="client">
+    <div class="client-photo" aria-hidden="true"></div>
+    <div class="client-inner">
+      <div class="client-copy">
+        <h2>A client that is already in the game when it opens</h2>
+        <p>Every Fabric and Quilt profile gets the Auroria Client: a movable HUD, zoom, freelook and a set of performance mods, installed the first time you press Play.</p>
+        <p class="try">Try it. Press W, A, S, D and click anywhere on this panel. The HUD on the right is live.</p>
+        <ul class="list">
+          <li>FPS, CPS, ping, coordinates, clock and memory</li>
+          <li>Keystrokes, armour and potion effects</li>
+          <li>Right Shift opens the HUD editor, C zooms</li>
+          <li>Sodium, Lithium, FerriteCore and more, added automatically</li>
+        </ul>
+      </div>
+      <div class="hud-stage" id="stage" tabindex="0" aria-label="Interactive HUD demo. Press W A S D and click to try it.">
+        <div class="hud hud-tl">
+          <div class="row"><span>FPS</span><b id="fps">--</b></div>
+          <div class="row"><span>CPS</span><b id="cps">0 | 0</b></div>
+          <div class="row"><span>Ping</span><b>24 ms</b></div>
+        </div>
+        <div class="hud hud-keys">
+          <kbd data-k="w" class="k-w">W</kbd>
+          <kbd data-k="a">A</kbd><kbd data-k="s">S</kbd><kbd data-k="d">D</kbd>
+          <kbd data-m="0" class="wide">LMB</kbd><kbd data-m="2" class="wide">RMB</kbd>
+        </div>
+        <div class="hud hud-br">
+          <div class="row"><span>XYZ</span><b>212 / 71 / -384</b></div>
+          <div class="row"><span>Time</span><b id="clock">--:--</b></div>
+        </div>
+        <p class="stage-note">Demo HUD. Not a screenshot of the game.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="mods">
+    <div class="split">
+      <div>
+        <h2>Mods, packs and shaders without leaving the launcher</h2>
+        <p>Browse Modrinth inside Auroria, sort by downloads, and install in one click. Installed mods get on and off switches and an Update all button. Mods a server needs install themselves on first Play.</p>
+      </div>
+      <div>
+        <h2>A skin you can actually look at</h2>
+        <p>The skins page shows your character in 3D with idle, walk, run, wave and crouch animations. Drag to turn it. Upload a PNG, wear it on your account and switch capes. The model next to the title is the same viewer.</p>
+      </div>
+    </div>
+    <dl class="specs">
+      <div><dt>Memory</dt><dd>Per profile, with window size and fullscreen</dd></div>
+      <div><dt>Java</dt><dd>Downloaded from Mojang for each version, or your own path</dd></div>
+      <div><dt>Data</dt><dd>Everything lives in %APPDATA%\Auroria</dd></div>
+      <div><dt>Sign in</dt><dd>Microsoft device code, nothing to set up</dd></div>
+    </dl>
+  </section>
+
+  <section class="download" id="download">
+    <div class="download-inner">
+      <h2>Get Auroria</h2>
+      <p>Double-click the file. That is the whole install.</p>
+      <a class="play" href="Auroria.exe" download><svg viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z"/></svg>Download Auroria.exe</a>
+      <div class="notes">
+        <div>
+          <h3>If Windows warns you</h3>
+          <p>The exe is not code-signed yet, so Windows may show "Windows protected your PC". Choose More info, then Run anyway.</p>
+        </div>
+        <div>
+          <h3>Sign-in note</h3>
+          <p>By default Auroria signs in through the Minecraft Launcher's public app ID. Microsoft does not officially allow that and could block it. You can register your own app and paste its ID in Settings.</p>
+        </div>
+        <div>
+          <h3>What it covers</h3>
+          <p>The Auroria Client needs Fabric or Quilt, so 1.14 and newer. Vanilla, Forge and NeoForge profiles get the Auroria menu look only.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Auroria Launcher</span>
+  <p>Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Studios. Fonts: Oxanium and Plus Jakarta Sans (SIL OFL). 3D skins: skinview3d (MIT).</p>
+</footer>
+
+<script src="assets/skinview3d.js"></script>
+<script src="skin.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

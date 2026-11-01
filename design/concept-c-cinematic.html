@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Concept C: Cinematic</title><link rel="icon" href="assets/flame.ico"><link rel="stylesheet" href="shared.css">
+<style>
+/* C: almost no UI. The photo and the character are the page; one glass launch bar holds everything you need. */
+.shade { background: radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(10,6,3,.55) 100%), linear-gradient(0deg, rgba(10,6,3,.7), transparent 38%); }
+.wordmark { position: absolute; z-index: 4; left: 124px; top: 30px; font-family: var(--display); font-weight: 800; letter-spacing: .3em; font-size: 15px; color: var(--soft); opacity: .85; }
+.pill { position: absolute; z-index: 5; left: 50%; top: 24px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 12px; height: 46px; padding: 0 18px 0 8px; border-radius: 999px; background: rgba(14,9,6,.7); border: 1px solid var(--line-2); backdrop-filter: blur(14px); font-weight: 700; }
+.pill .tile-ico { width: 32px; height: 32px; border-radius: 10px; font-size: 12px; }
+.pill small { color: var(--muted); font-weight: 600; }
+.pill svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; opacity: .6; }
+
+.character { left: 50%; transform: translateX(-34%); bottom: 96px; }
+.character .viewer3d { margin-bottom: -40px; }
+
+.bar { position: absolute; z-index: 6; left: calc(50% + 44px); bottom: 26px; transform: translateX(-50%); width: min(780px, calc(100% - 200px)); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; padding: 14px 18px; border-radius: 24px; background: rgba(14,9,6,.72); border: 1px solid var(--line-2); backdrop-filter: blur(18px); box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+.bar .left { display: flex; align-items: center; gap: 12px; }
+.bar .left .tile-ico { width: 46px; height: 46px; font-size: 16px; border-radius: 13px; }
+.bar b { display: block; font-size: 14px; }
+.bar small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.bar .right { display: flex; justify-content: flex-end; gap: 22px; }
+.kv { text-align: right; }
+.kv small { font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.kv b { font-family: var(--display); font-size: 18px; margin-top: 3px; }
+.bar .play { height: 64px; padding: 0 56px; font-size: 20px; }
+</style></head>
+<body><div class="app">
+  <div class="scene"></div><div class="shade"></div>
+  <nav class="rail">
+    <div class="logo"><img src="assets/flame.ico" alt=""></div>
+    <button class="nav active"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+    <button class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/></svg>Profiles</button>
+    <button class="nav"><svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></svg>Mods</button>
+    <button class="nav"><svg viewBox="0 0 24 24"><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-1 2-7 2-8 0z"/></svg>Skins</button>
+    <button class="nav settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></button>
+  </nav>
+  <div class="wordmark rise">AURORIA</div>
+  <button class="pill rise" style="animation-delay:.1s"><span class="tile-ico" style="background:#f07f2a">AS</span>Auroria Survival <small>1.21.1 · Fabric</small><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+  <div class="account"><button class="chip"><span class="head"></span>Arnxld<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></div>
+
+  <div class="character rise" style="animation-delay:.15s">
+    <div class="viewer3d" data-w="440" data-h="560" data-zoom="0.84" data-cx="0.85" data-cy="0.06"></div>
+  </div>
+
+  <div class="bar rise" style="animation-delay:.25s">
+    <div class="left"><span class="tile-ico" style="background:#f07f2a">AS</span><div><b><span class="dot" style="margin-right:7px"></span>Ready to play</b><small>Played 2 hours ago</small></div></div>
+    <button class="play"><svg viewBox="0 0 14 16"><path d="M1 1l12 7-12 7z"/></svg>PLAY</button>
+    <div class="right"><div class="kv"><small>Mods</small><b>38</b></div><div class="kv"><small>Memory</small><b>6 GB</b></div><div class="kv"><small>Updates</small><b style="color:#ffb27a">3</b></div></div>
+  </div>
+</div>
+<script src="assets/skinview3d.js"></script><script src="shared.js"></script>
+</body></html>

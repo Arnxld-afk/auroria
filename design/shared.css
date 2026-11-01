@@ -1,0 +1,71 @@
+/* Auroria home redesign mockups: shared tokens, window chrome, buttons. Sample data only. */
+@font-face { font-family: 'Oxanium'; font-weight: 700; src: url(assets/fonts/oxanium-700.woff2) format('woff2'); }
+@font-face { font-family: 'Oxanium'; font-weight: 800; src: url(assets/fonts/oxanium-800.woff2) format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-weight: 500; src: url(assets/fonts/jakarta-500.woff2) format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-weight: 600; src: url(assets/fonts/jakarta-600.woff2) format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-weight: 700; src: url(assets/fonts/jakarta-700.woff2) format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-weight: 800; src: url(assets/fonts/jakarta-800.woff2) format('woff2'); }
+
+:root {
+  color-scheme: dark;
+  --bg: #0d0906; --panel: rgba(14, 9, 6, .72); --panel-2: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+  --fg: #f4ece4; --soft: #d8cdc2; --muted: #a89d92;
+  --accent: #f07f2a; --accent-ink: #1a0f08; --ok: #7fd17f;
+  --display: 'Oxanium', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.app { position: relative; height: 100%; overflow: hidden; }
+.scene { position: absolute; inset: 0; background: url(assets/bg.png) center / cover no-repeat; }
+.shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10,6,3,.82) 0%, rgba(10,6,3,.5) 38%, rgba(10,6,3,.05) 70%), linear-gradient(0deg, rgba(10,6,3,.55), transparent 35%); }
+
+/* rail */
+.rail { position: absolute; z-index: 5; left: 0; top: 0; bottom: 0; width: 88px; display: flex; flex-direction: column; align-items: center; padding: 22px 0; background: rgba(10,6,3,.72); border-right: 1px solid var(--line); backdrop-filter: blur(10px); }
+.rail .logo { width: 44px; height: 44px; margin-bottom: 22px; }
+.rail .logo img { width: 100%; height: 100%; }
+.nav { width: 88px; height: 64px; border: 0; background: transparent; color: #9a8f84; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 700; transition: color .15s; }
+.nav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.nav:hover { color: var(--soft); }
+.nav.active { color: #ffb27a; position: relative; }
+.nav.active::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.nav.active svg { filter: drop-shadow(0 0 8px rgba(255,120,40,.7)); }
+.nav.settings { margin-top: auto; height: 52px; }
+
+/* account chip */
+.account { position: absolute; z-index: 6; top: 22px; right: 28px; }
+.chip { display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px 0 6px; border: 1px solid var(--line-2); border-radius: 12px; background: rgba(14,9,6,.7); backdrop-filter: blur(8px); font-weight: 700; }
+.chip .head { width: 28px; height: 28px; border-radius: 7px; background: #6b4a2e; image-rendering: pixelated; }
+.chip svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; opacity: .6; }
+
+/* 3D lip button, same recipe as the profile tiles */
+.play { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 12px; height: 60px; padding: 0 44px; border: 0; border-radius: 15px; background: linear-gradient(#f9923f, #ef7b24); color: var(--accent-ink); font-family: var(--display); font-size: 18px; font-weight: 800; letter-spacing: .14em; box-shadow: inset 0 -5px 0 rgba(0,0,0,.2), inset 0 2px 0 rgba(255,255,255,.24), 0 12px 30px rgba(240,127,42,.32); transition: transform .2s var(--ease), box-shadow .2s, background .2s; }
+.play svg { width: 14px; height: 16px; fill: currentColor; }
+.play::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.38) 50%, transparent 70%); transform: translateX(-130%); animation: shine 3.6s ease-in-out 1.2s infinite; pointer-events: none; }
+.play:hover { background: linear-gradient(#fba050, #f2842c); transform: translateY(-2px); box-shadow: inset 0 -5px 0 rgba(0,0,0,.2), inset 0 2px 0 rgba(255,255,255,.3), 0 18px 40px rgba(240,127,42,.45); }
+.play:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.18), 0 6px 16px rgba(240,127,42,.3); }
+@keyframes shine { 0%, 60% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: 11px; background: rgba(255,255,255,.06); font-weight: 700; font-size: 13px; transition: background .2s, transform .2s var(--ease); }
+.btn:hover { background: rgba(255,255,255,.12); transform: translateY(-1px); }
+.btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* profile tile */
+.tile-ico { flex: none; width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; font-size: 19px; color: #1a0f08; box-shadow: inset 0 -4px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.18); }
+.eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #ffb27a; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(127,209,127,.6); animation: pulse 2s infinite; }
+@keyframes pulse { to { box-shadow: 0 0 0 9px rgba(127,209,127,0); } }
+
+/* character */
+.character { position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: center; }
+.viewer3d { position: relative; }
+.viewer3d canvas { display: block; position: relative; z-index: 1; filter: brightness(.8) contrast(.98) saturate(.95) sepia(.16) blur(.3px) drop-shadow(6px -2px 14px rgba(255,165,80,.22)); }
+.viewer3d .cast-shadow { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .85; filter: blur(2px); mix-blend-mode: multiply; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .6s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

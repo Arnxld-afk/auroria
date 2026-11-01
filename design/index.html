@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auroria home: design concepts</title><link rel="icon" href="assets/flame.ico"><link rel="stylesheet" href="shared.css">
+<style>
+html, body { overflow: auto; }
+body { background: radial-gradient(90% 60% at 50% -10%, #3a1d0b, var(--bg) 60%); min-height: 100%; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 56px 28px 80px; }
+h1 { margin: 6px 0 8px; font-family: var(--display); font-size: 44px; font-weight: 800; letter-spacing: .02em; }
+.lead { max-width: 640px; color: var(--soft); line-height: 1.6; margin: 0 0 40px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 26px; }
+.concept { display: flex; flex-direction: column; border-radius: 22px; background: rgba(255,255,255,.04); border: 1px solid var(--line); overflow: hidden; text-decoration: none; color: inherit; transition: transform .3s var(--ease), border-color .2s, box-shadow .3s; }
+.concept:hover { transform: translateY(-5px); border-color: rgba(240,127,42,.6); box-shadow: 0 26px 60px rgba(0,0,0,.5); }
+.thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #000; }
+.thumb iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; border: 0; transform-origin: 0 0; pointer-events: none; }
+.info { padding: 18px 20px 22px; }
+.info .eyebrow { margin-bottom: 6px; }
+.info h2 { margin: 0 0 8px; font-family: var(--display); font-size: 24px; font-weight: 800; }
+.info p { margin: 0; color: var(--muted); line-height: 1.55; font-size: 13px; }
+.info ul { margin: 12px 0 0; padding-left: 18px; color: var(--soft); font-size: 13px; line-height: 1.6; }
+.open { display: inline-flex; margin-top: 14px; font-weight: 800; color: #ffb27a; font-size: 13px; }
+.notes { margin-top: 46px; padding: 22px 24px; border-radius: 18px; background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--soft); line-height: 1.7; font-size: 13px; }
+.notes b { color: var(--fg); }
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">Auroria Launcher · Home page</div>
+  <h1>Three ways to lay out Home</h1>
+  <p class="lead">Each concept is a standalone page using the real background, fonts, fire icons, 3D lit character and 3D-lip PLAY button. Numbers and profile names are sample data. Click a card to open it full size.</p>
+  <div class="grid">
+    <a class="concept" href="concept-a-stage.html">
+      <div class="thumb"><iframe src="concept-a-stage.html" title="Concept A" loading="lazy"></iframe></div>
+      <div class="info"><div class="eyebrow">Concept A</div><h2>Stage</h2>
+        <p>Closest to today. Big wordmark and PLAY on the left, character on the right, plus a "jump back in" dock of your recent profiles.</p>
+        <ul><li>Switch profile in one click without leaving Home</li><li>Lowest risk, easiest to build</li></ul><span class="open">Open full size →</span></div></a>
+    <a class="concept" href="concept-b-dashboard.html">
+      <div class="thumb"><iframe src="concept-b-dashboard.html" title="Concept B" loading="lazy"></iframe></div>
+      <div class="info"><div class="eyebrow">Concept B</div><h2>Dashboard</h2>
+        <p>One glass card for the selected profile: icon, version chips, mods, memory, last played, PLAY, edit and folder. Widgets below for updates and server status.</p>
+        <ul><li>Most information at a glance</li><li>Needs a few new numbers from the backend</li></ul><span class="open">Open full size →</span></div></a>
+    <a class="concept" href="concept-c-cinematic.html">
+      <div class="thumb"><iframe src="concept-c-cinematic.html" title="Concept C" loading="lazy"></iframe></div>
+      <div class="info"><div class="eyebrow">Concept C</div><h2>Cinematic</h2>
+        <p>The photo and the character are the page. A profile pill sits at the top and one launch bar at the bottom holds PLAY and the key stats.</p>
+        <ul><li>Cleanest look, least clutter</li><li>Character becomes the hero, centre stage</li></ul><span class="open">Open full size →</span></div></a>
+  </div>
+  <div class="notes"><b>What stays the same in all three:</b> the left rail with fire icons, the account chip top right, the sunset-lit character with a cast shadow, and the soft 3D-lip PLAY button. <b>What changes:</b> where the profile lives, how much information sits on Home, and how much of the photo is left clear.<br><b>Next step:</b> pick one (or mix, for example C's launch bar with A's recent profiles) and I will build it into the launcher.</div>
+</div>
+<script>
+// Scale each 1280x800 preview to fit its card.
+function fit() { document.querySelectorAll('.thumb').forEach((t) => { t.firstElementChild.style.transform = 'scale(' + (t.clientWidth / 1280) + ')'; }); }
+addEventListener('resize', fit); fit();
+</script></body></html>
