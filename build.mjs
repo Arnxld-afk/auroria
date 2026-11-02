@@ -26,10 +26,6 @@ const assets = {
   'ui/icon-256.png': 'src/ui/icon-256.png',
   'ui/skinview3d.js': 'src/ui/skinview3d.js',
   'assets/auroria-ui.zip': 'src/assets/auroria-ui.zip',
-  'assets/webview/Microsoft.Web.WebView2.Core.dll': 'src/assets/webview/Microsoft.Web.WebView2.Core.dll',
-  'assets/webview/Microsoft.Web.WebView2.WinForms.dll': 'src/assets/webview/Microsoft.Web.WebView2.WinForms.dll',
-  'assets/webview/x64/WebView2Loader.dll': 'src/assets/webview/x64/WebView2Loader.dll',
-  'assets/webview/arm64/WebView2Loader.dll': 'src/assets/webview/arm64/WebView2Loader.dll',
 };
 for (const f of fs.readdirSync(path.join(root, 'src/ui/fonts'))) if (f.endsWith('.woff2') || f.endsWith('.ttf')) assets[`ui/fonts/${f}`] = `src/ui/fonts/${f}`;
 const seaConfig = {

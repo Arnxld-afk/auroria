@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS = {
   selectedServer: '',
   notifications: true,
   discordPresence: true,
+  updateCheck: true,
   accent: '',
 };
 
@@ -1947,7 +1948,7 @@ const routes = {
     settings.width = Math.max(320, Number(settings.width) || 1280);
     settings.height = Math.max(240, Number(settings.height) || 720);
     if (!/^#[0-9a-f]{6}$/i.test(settings.accent || '')) settings.accent = '';
-    settings.notifications = settings.notifications !== false; settings.discordPresence = settings.discordPresence !== false;
+    settings.notifications = settings.notifications !== false; settings.discordPresence = settings.discordPresence !== false; settings.updateCheck = settings.updateCheck !== false;
     await saveSettings(); return settings;
   },
   'POST /api/servers/save': async (b) => {
@@ -2507,16 +2508,32 @@ Add-Type -Path $dll
 [AuroriaHost]::Run($env:AURORIA_URL, $env:AURORIA_PROFILE, $env:AURORIA_ICON, $sdk)
 `;
 const WV_SDK = path.join(DATA, 'webview', 'sdk');
-const WV_FILES = ['Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'x64/WebView2Loader.dll', 'arm64/WebView2Loader.dll'];
+// Microsoft's WebView2 SDK is not open source, so Auroria does not ship it: it fetches the official NuGet package once,
+// checks it against a pinned SHA-256 and keeps the four files it needs.
+const WV_VERSION = '1.0.3719.77';
+const WV_NUPKG = `https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/${WV_VERSION}/microsoft.web.webview2.${WV_VERSION}.nupkg`;
+const WV_SHA256 = '2f6be3a10a1a8d6d1fde986af4131dab344f8181fffe75590824e0f4b037ed73';
+const WV_FILES = {
+  'Microsoft.Web.WebView2.Core.dll': 'lib/net462/Microsoft.Web.WebView2.Core.dll',
+  'Microsoft.Web.WebView2.WinForms.dll': 'lib/net462/Microsoft.Web.WebView2.WinForms.dll',
+  'x64/WebView2Loader.dll': 'runtimes/win-x64/native/WebView2Loader.dll',
+  'arm64/WebView2Loader.dll': 'runtimes/win-arm64/native/WebView2Loader.dll',
+};
 async function ensureWebViewSdk() {
-  for (const rel of WV_FILES) {
-    const dest = path.join(WV_SDK, ...rel.split('/'));
-    const data = asset(`assets/webview/${rel}`);
-    const cur = await fsp.readFile(dest).catch(() => null);
-    if (cur && cur.equals(data)) continue;
-    await ensureDir(path.dirname(dest));
-    try { await fsp.writeFile(dest, data); } catch (e) { if (!cur) throw e; } // in use by a running window: keep the old copy
+  const marker = path.join(WV_SDK, 'version.txt');
+  const have = await fsp.readFile(marker, 'utf8').catch(() => '');
+  if (have.trim() === WV_VERSION && (await Promise.all(Object.keys(WV_FILES).map((r) => exists(path.join(WV_SDK, ...r.split('/')))))).every(Boolean)) return;
+  let res; try { res = await fetch(WV_NUPKG, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(60000) }); } catch (e) { throw netError(WV_NUPKG, e); }
+  if (!res.ok) throw new Error(`WebView2 SDK download failed (HTTP ${res.status})`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (crypto.createHash('sha256').update(buf).digest('hex') !== WV_SHA256) throw new Error('The WebView2 SDK download did not match its checksum.');
+  const zip = zipEntries(buf);
+  for (const [rel, inPkg] of Object.entries(WV_FILES)) {
+    const e = zip.find((x) => x.name === inPkg); if (!e) throw new Error(`WebView2 SDK is missing ${inPkg}`);
+    const dest = path.join(WV_SDK, ...rel.split('/')); await ensureDir(path.dirname(dest));
+    try { await fsp.writeFile(dest, e.read()); } catch (err) { if (!(await exists(dest))) throw err; } // in use by a running window: keep the old copy
   }
+  await fsp.writeFile(marker, WV_VERSION);
 }
 let hostShown = false;
 function startHost(url) {

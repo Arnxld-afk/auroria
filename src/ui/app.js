@@ -488,7 +488,8 @@ function pageSettings() {
       <input class="input" id="set-java" type="text" placeholder="Automatic" value="${esc(st.javaPath)}" data-setting="javaPath"></div>`;
   else if (t === 'launcher') panel = `
     <div class="field"><div><div class="label">While playing</div><div class="hint">Off closes the launcher once Minecraft starts</div></div>${sw('keepOpen', 'Keep launcher open')}</div>
-    <div class="field"><div><div class="label">Notifications</div><div class="hint">Windows notifications when Minecraft closes or crashes, a modpack finishes installing, or an update is ready</div></div>${sw('notifications', 'Show notifications')}</div>
+    <div class="field"><div><div class="label">Notifications</div><div class="hint">Windows notifications when Minecraft closes or crashes, a modpack finishes installing, or an update is ready. Adds Auroria to the Start menu, which Windows needs to show them.</div></div>${sw('notifications', 'Show notifications')}</div>
+    <div class="field"><div><div class="label">Updates</div><div class="hint">Asks GitHub for a newer Auroria each time it starts. Nothing about you is sent.</div></div>${sw('updateCheck', 'Check for updates')}</div>
     <div class="field"><div><div class="label">Discord status</div><div class="hint">Shows the profile you are playing on your Discord profile, while the launcher is open</div></div>${sw('discordPresence', 'Show in Discord')}</div>
     <div class="field"><div><div class="label">Folders</div><div class="hint">Worlds, screenshots and downloads</div></div>
       <div class="inline"><button class="btn" data-action="open" data-what="game">${ICON.folder}Game folder</button><button class="btn" data-action="open" data-what="data">${ICON.folder}Launcher folder</button></div></div>
@@ -1612,7 +1613,7 @@ async function revealWhenLoaded() {
   setInterval(() => { if (S.page === 'home' || S.page === 'servers') loadPings(); }, 30000);
   setInterval(checkModsFolder, 1500);
   window.addEventListener('focus', checkModsFolder);
-  setTimeout(checkForUpdate, 2500);
+  if (S.state.settings.updateCheck !== false) setTimeout(checkForUpdate, 2500);
 })();
 // A desktop shortcut started (or re-focused) Auroria for one profile: select it and press Play.
 async function autoPlay(id) {

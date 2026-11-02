@@ -109,6 +109,29 @@ then open the printed URL.
 
 Auroria is a Node single-executable app. A small local HTTP server handles launching, downloads and the Mojang, Microsoft and Modrinth APIs, and the interface (plain HTML, CSS and JS) runs in a native WebView2 window.
 
+## Uninstall
+
+1. Close Auroria.
+2. Delete `Auroria.exe`.
+3. Delete the folder `%APPDATA%\Auroria`. This removes your profiles, worlds and settings, so back up any worlds you want to keep first.
+4. If you turned notifications on, delete **Auroria** from the Start menu (right-click it, then Uninstall, or delete `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Auroria.lnk`).
+5. Delete any profile shortcuts you put on your desktop.
+
+## Privacy
+
+Auroria has no telemetry. It only contacts the services it needs, such as Microsoft for sign-in, Mojang for game files and Modrinth for mods. See the [privacy policy](PRIVACY.md) for each one and how to turn the optional ones off.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [Arnxld-afk](https://github.com/Arnxld-afk)
+- Approvers: [Arnxld-afk](https://github.com/Arnxld-afk)
+
+Every release is built from this repository by [GitHub Actions](.github/workflows/build.yml) and signed only after a manual approval.
+
+Privacy policy: [PRIVACY.md](PRIVACY.md). This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it, apart from what the privacy policy lists.
+
 ## License
 
 Auroria is released under the [MIT License](LICENSE). Bundled fonts and libraries keep their own licenses, listed below.
@@ -117,4 +140,4 @@ Auroria is released under the [MIT License](LICENSE). Bundled fonts and librarie
 
 Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Studios.
 
-Fonts: [Monocraft](https://github.com/IdreesInc/Monocraft), Oxanium and Plus Jakarta Sans (SIL OFL). 3D skins: [skinview3d](https://github.com/bs-community/skinview3d) (MIT). Window: Microsoft Edge WebView2 SDK.
+Fonts: [Monocraft](https://github.com/IdreesInc/Monocraft), Oxanium and Plus Jakarta Sans (SIL OFL). 3D skins: [skinview3d](https://github.com/bs-community/skinview3d) (MIT). Window: Microsoft Edge WebView2 SDK, downloaded from NuGet on first start (not bundled).
