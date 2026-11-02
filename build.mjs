@@ -23,6 +23,7 @@ const assets = {
   'ui/app.js': 'src/ui/app.js',
   'ui/bg.jpg': 'src/ui/bg.jpg',
   'ui/favicon.ico': 'src/ui/favicon.ico',
+  'ui/icon-256.png': 'src/ui/icon-256.png',
   'ui/skinview3d.js': 'src/ui/skinview3d.js',
   'assets/auroria-ui.zip': 'src/assets/auroria-ui.zip',
   'assets/webview/Microsoft.Web.WebView2.Core.dll': 'src/assets/webview/Microsoft.Web.WebView2.Core.dll',
@@ -51,12 +52,12 @@ const groupId = groups.length ? groups[0].id : 1;
 const lang = groups.length ? groups[0].lang : 1033;
 ResEdit.Resource.IconGroupEntry.replaceIconsForResource(res.entries, groupId, lang, ico.icons.map((i) => i.data));
 const vi = ResEdit.Resource.VersionInfo.fromEntries(res.entries)[0] || ResEdit.Resource.VersionInfo.createEmpty();
-vi.setFileVersion(1, 1, 0, 0, lang);
-vi.setProductVersion(1, 1, 0, 0, lang);
+vi.setFileVersion(1, 2, 0, 0, lang);
+vi.setProductVersion(1, 2, 0, 0, lang);
 vi.setStringValues({ lang, codepage: 1200 }, {
   FileDescription: 'Auroria Launcher', ProductName: 'Auroria', CompanyName: 'Auroria',
   InternalName: 'Auroria', OriginalFilename: 'Auroria.exe', LegalCopyright: 'Auroria. Minecraft is a trademark of Mojang Studios.',
-  FileVersion: '1.1.0', ProductVersion: '1.1.0',
+  FileVersion: '1.2.0', ProductVersion: '1.2.0',
 });
 vi.outputToResourceEntries(res.entries);
 res.outputResource(exe);

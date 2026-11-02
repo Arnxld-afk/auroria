@@ -32,6 +32,9 @@ One file. No installer. Profiles, mods, skins and logs in one place.
 | **Modpacks** | Install Modrinth modpacks straight from Browse. Each one becomes its own profile. |
 | **Import and share** | Bring in profiles from the Modrinth App, Prism Launcher, CurseForge, or a `.mrpack` file. Share any profile as a `.mrpack` that Auroria, the Modrinth App and Prism can import. |
 | **Mods** | Installed list with on/off switches, update checks and Update all. Browse Modrinth for mods, resource packs and shaders with sorting and endless scrolling. Required dependencies install with the mod, and Auroria warns before you remove or turn off a mod that others need. Mods you drop into the folder appear straight away. |
+| **Snapshots** | Save a profile's mods and their configs and roll back later. Auroria takes one by itself before updating mods, so a bad update can be undone. |
+| **Performance presets** | Low-end PC, Balanced or Max FPS: one click sets memory, Java garbage-collector flags and video settings. |
+| **Packs and shaders** | Turn resource packs on and off and drag them into load order. Pick the active shader for Iris or OptiFine. |
 | **Worlds** | List each profile's worlds, back them up in one click and restore any backup. Restoring backs up the current world first. |
 | **Screenshots** | Browse each profile's screenshots in the launcher. |
 | **Servers** | Save servers per profile with live ping, player count and MOTD, and join one directly. |
@@ -40,6 +43,9 @@ One file. No installer. Profiles, mods, skins and logs in one place.
 | **Launch check** | Before Play, Auroria scans the mods and warns about ones that do not support your Minecraft version, missing dependencies and duplicates, with a Delete button per mod. |
 | **Crash help** | If the game exits unexpectedly, Auroria reads the crash, tells you the likely cause and can upload the log to mclo.gs. |
 | **Game logs** | A live log page (shown only while the game runs) with search, level filters, wrap, copy, save, and one-click **upload to mclo.gs** for sharing. |
+| **Desktop shortcuts** | Put a shortcut for any profile on the desktop. It opens Auroria and starts that profile. |
+| **Themes** | Eight accent colours plus a custom picker. The flame, the title and the background mood follow the colour, and the character is lit to match. |
+| **Discord and notifications** | Shows what you are playing on Discord, and Windows notifications when Minecraft closes or crashes, a modpack is installed or an update is ready. |
 | **Accounts** | Multiple Microsoft accounts with a quick switcher. |
 | **Skins** | Real 3D player model with idle, walk, run, wave and crouch animations. Upload skins, wear them, switch capes. |
 | **Updates** | Auroria checks GitHub for a new version on start and updates itself in one click, after checking the download's SHA-256. |

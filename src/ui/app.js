@@ -205,12 +205,13 @@ function mount3d() {
         v.controls.update();
         v.globalLight.intensity = 1.55; v.cameraLight.intensity = 1.25;
         if (key === 'home') { // backlit sunset: dim warm fill from the camera, a strong warm rim from the sun behind-right
-          v.globalLight.color.set('#a8835e'); v.globalLight.intensity = 0.85;
-          v.cameraLight.color.set('#e8b98a'); v.cameraLight.intensity = 0.32;
+          v.globalLight.intensity = 0.85; v.cameraLight.intensity = 0.32;
           const sun = new v.cameraLight.constructor('#ffb36b', 4.6); sun.decay = 0; sun.distance = 0; sun.position.set(46, 14, -42); v.scene.add(sun);
+          v.__sun = sun;
           const bounce = new v.cameraLight.constructor('#6f7f3a', 0.7); bounce.decay = 0; bounce.distance = 0; bounce.position.set(-6, -40, 24); v.scene.add(bounce); // green light bounced off the grass
           // The photo's warm haze. skinview3d does not export THREE.Fog, so pass the duck-typed object three.js reads.
           v.scene.fog = { isFog: true, name: '', color: v.globalLight.color.clone().set('#c8925a'), near: 55, far: 420, clone() { return this; }, toJSON() { return {}; } };
+          S.homeViewer = v; lightHome();
         }
         if (v.fxaaPass) v.fxaaPass.enabled = false; // keep pixels sharp like the game
         rec = { v, canvas, shadow: key === 'home' && v.composer ? attachCastShadow(v, canvas, w, h) : null };
@@ -345,6 +346,7 @@ function pageServers() {
           ${S.pMenu === s.id ? `<div class="menu p-menu" role="menu">
             <button role="menuitem" data-action="share-profile" data-id="${esc(s.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg>Share as .mrpack</button>
             <button role="menuitem" data-action="dup-server" data-id="${esc(s.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>Duplicate</button>
+            <button role="menuitem" data-action="profile-shortcut" data-id="${esc(s.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Desktop shortcut</button>
             <button role="menuitem" data-action="open-profile" data-id="${esc(s.id)}">${ICON.folder}Open folder</button>
             <button role="menuitem" class="danger" data-action="delete-server" data-id="${esc(s.id)}">${ICON.trash}Delete</button></div>` : ''}
         </div>
@@ -365,7 +367,8 @@ const shownMods = () => S.mods && (S.mods.some((m) => m.own) ? S.mods.filter((m)
 function modRow(m) {
   const upd = S.updates && S.updates.find((u) => u.file === m.file);
   const icon = m.icon ? `<img src="${esc(m.icon)}" alt="">` : esc(m.title[0] || '?');
-  return `<div class="mod"><div class="mod-name"><span class="icon">${icon}</span><div><b>${esc(m.slug === 'axolotlclient' ? 'Auroria Client' : m.title)}${m.client ? ' <span class="client-chip small">CLIENT</span>' : ''}</b><small>${m.own ? 'Your own client · HUD editor, zoom' : m.slug === 'axolotlclient' ? 'Powered by AxolotlClient' : esc(m.category || m.file)}</small></div></div>
+  const dup = m.projectId && m.enabled && (S.mods || []).some((x) => x !== m && x.enabled && x.projectId === m.projectId);
+  return `<div class="mod${dup ? ' dup' : ''}"><div class="mod-name"><span class="icon">${icon}</span><div><b>${esc(m.slug === 'axolotlclient' ? 'Auroria Client' : m.title)}${m.client ? ' <span class="client-chip small">CLIENT</span>' : ''}${dup ? ' <span class="dup-chip" title="Two copies of this mod are switched on. Remove or turn off one, or the game will not start.">Duplicate</span>' : ''}</b><small>${m.own ? 'Your own client · HUD editor, zoom' : m.slug === 'axolotlclient' ? 'Powered by AxolotlClient' : esc(m.category || m.file)}</small></div></div>
     <span class="ver tnum">${esc(m.version || '—')}${upd ? '<span class="pill-upd">Update</span>' : ''}</span>
     ${m.own ? '<div class="mod-actions"><span class="client-chip small">ALWAYS ON</span></div>' : `<div class="mod-actions"><button class="iconbtn" data-action="mod-delete" data-file="${esc(m.file)}" aria-label="Remove ${esc(m.title)}">${ICON.trash}</button>
     <button class="switch" role="switch" aria-checked="${m.enabled}" aria-label="${esc(m.title)}" data-action="mod-toggle" data-file="${esc(m.file)}"></button></div>`}</div>`;
@@ -382,7 +385,7 @@ function browseRow(h) {
 }
 function pageMods() {
   const s = selected(); const vanilla = s.loader === 'vanilla';
-  if (vanilla) { S.modTab = 'browse'; if (S.browseType !== 'modpack') S.browseType = 'resourcepack'; }
+  if (vanilla) { if (S.modTab !== 'packs') S.modTab = 'browse'; if (S.browseType !== 'modpack') S.browseType = 'resourcepack'; }
   const head = `<header class="page-head"><h1>${vanilla ? 'Resource packs' : 'Mods'}</h1><p>${esc(s.name)} · ${esc(s.version)} ${loaderLabel(s)}${!vanilla && S.mods ? ` · ${shownMods().length} installed` : ''}${vanilla ? ' · vanilla profiles take resource packs only' : ''}</p></header>`;
   const updCount = S.updates ? S.updates.length : 0;
   let body;
@@ -399,6 +402,8 @@ function pageMods() {
       <label class="sort"><span class="sub">Sort</span><select id="browse-sort" class="input" aria-label="Sort results">${[['relevance', 'Relevance'], ['downloads', 'Downloads'], ['follows', 'Follows'], ['newest', 'Newest'], ['updated', 'Recently updated']].map(([k, l]) => `<option value="${k}" ${S.browseSort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <span class="sub tnum" style="margin-left:auto">${S.browseTotal ? `${compact(S.browseTotal)} results on Modrinth` : ''}</span>
     </div><div class="list-body">${rows}</div></div>`;
+  } else if (S.modTab === 'packs' || S.modTab === 'shaders') {
+    body = packsBody(S.modTab === 'shaders' ? 'shader' : 'resourcepack');
   } else {
     let mods = shownMods();
     if (mods && S.modTab === 'updates') mods = mods.filter((m) => S.updates && S.updates.some((u) => u.file === m.file));
@@ -408,10 +413,12 @@ function pageMods() {
       : `<div class="empty"><strong>${S.modTab === 'updates' ? 'Everything is up to date' : 'No mods yet'}</strong>${S.modTab === 'updates' ? '' : 'Auroria Client and profile mods install the first time you press Play. Find more under Browse.'}</div>`;
     body = `<div class="card list"><div class="list-head"><span>MOD</span><span>VERSION</span><span style="text-align:right">ON</span></div><div class="list-body">${rows}</div></div>`;
   }
-  const folder = S.modTab === 'browse' && S.browseType === 'resourcepack' ? ['resourcepacks', 'Open resource packs folder'] : S.modTab === 'browse' && S.browseType === 'shader' ? ['shaderpacks', 'Open shaders folder'] : ['mods', 'Open mods folder'];
-  const tabs = vanilla ? '<div class="tabs"><span class="tab active">Browse</span></div>' : `<div class="tabs" role="tablist">
+  const folder = S.modTab === 'packs' || (S.modTab === 'browse' && S.browseType === 'resourcepack') ? ['resourcepacks', 'Open resource packs folder'] : S.modTab === 'shaders' || (S.modTab === 'browse' && S.browseType === 'shader') ? ['shaderpacks', 'Open shaders folder'] : ['mods', 'Open mods folder'];
+  const packTabs = `<button class="tab ${S.modTab === 'packs' ? 'active' : ''}" role="tab" data-action="mod-tab" data-tab="packs">Packs</button>${vanilla ? '' : `<button class="tab ${S.modTab === 'shaders' ? 'active' : ''}" role="tab" data-action="mod-tab" data-tab="shaders">Shaders</button>`}`;
+  const tabs = vanilla ? `<div class="tabs" role="tablist">${packTabs}<button class="tab ${S.modTab === 'browse' ? 'active' : ''}" role="tab" data-action="mod-tab" data-tab="browse">Browse</button></div>` : `<div class="tabs" role="tablist">
     <button class="tab ${S.modTab === 'installed' ? 'active' : ''}" role="tab" data-action="mod-tab" data-tab="installed">Installed <span class="count">${S.mods ? shownMods().length : ''}</span></button>
     <button class="tab ${S.modTab === 'updates' ? 'active' : ''}" role="tab" data-action="mod-tab" data-tab="updates">Updates ${updCount ? `<span style="color:var(--accent)">${updCount}</span>` : ''}</button>
+    ${packTabs}
     <button class="tab ${S.modTab === 'browse' ? 'active' : ''}" role="tab" data-action="mod-tab" data-tab="browse">Browse</button></div>`;
   return head + `<div class="toolbar">${tabs}<label class="search">${ICON.search}<input id="mod-search" type="search" placeholder="${S.modTab === 'browse' ? 'Search Modrinth' : 'Search your mods'}" aria-label="Search" value="${esc(S.modQuery)}"></label></div>
   <div class="mods-layout">${body}
@@ -419,6 +426,8 @@ function pageMods() {
       ${vanilla ? '' : `<section class="card"><h2>${S.updates == null ? 'Checking for updates…' : updCount ? `${updCount} update${updCount > 1 ? 's' : ''} ready` : 'All mods up to date'}</h2>
         <p>${updCount ? esc(S.updates.map((u) => u.title).slice(0, 3).join(', ')) + (updCount > 3 ? ' and more' : '') + ' have new versions.' : 'Updates come from Modrinth.'}</p>
         <button class="btn primary" style="width:100%;margin-top:16px" data-action="mod-update-all" ${!updCount || S.busy.update ? 'disabled' : ''}>${S.busy.update ? 'Updating…' : 'Update all'}</button></section>`}
+      ${S.modTab === 'shaders' ? '<section class="card"><h2>Shaders need Iris or OptiFine</h2><p>Pick one shader here and it is switched on the next time you play. Install Iris from Browse if you have not yet.</p><button class="btn soft small" style="margin-top:14px" data-action="find-iris">Find Iris</button></section>' : ''}
+      ${S.modTab === 'packs' ? '<section class="card"><h2>Load order</h2><p>Drag packs that are on to change their order. The top pack wins when two packs change the same thing, like in game.</p></section>' : ''}
       ${S.modTab === 'browse' && S.browseType === 'shader' ? '<section class="card"><h2>Shaders need Iris</h2><p>Install the Iris Shaders mod from the Mods list, then pick a shader in game under Video Settings.</p><button class="btn soft small" style="margin-top:14px" data-action="find-iris">Find Iris</button></section>' : ''}
       <section class="card"><h2>Performance</h2>
         <div class="row-between" style="margin-top:16px"><label for="mods-ram" style="font-weight:600">Memory</label><b class="tnum" id="ram-label">${S.state.settings.ramGB} GB</b></div>
@@ -479,10 +488,17 @@ function pageSettings() {
       <input class="input" id="set-java" type="text" placeholder="Automatic" value="${esc(st.javaPath)}" data-setting="javaPath"></div>`;
   else if (t === 'launcher') panel = `
     <div class="field"><div><div class="label">While playing</div><div class="hint">Off closes the launcher once Minecraft starts</div></div>${sw('keepOpen', 'Keep launcher open')}</div>
+    <div class="field"><div><div class="label">Notifications</div><div class="hint">Windows notifications when Minecraft closes or crashes, a modpack finishes installing, or an update is ready</div></div>${sw('notifications', 'Show notifications')}</div>
+    <div class="field"><div><div class="label">Discord status</div><div class="hint">Shows the profile you are playing on your Discord profile, while the launcher is open</div></div>${sw('discordPresence', 'Show in Discord')}</div>
     <div class="field"><div><div class="label">Folders</div><div class="hint">Worlds, screenshots and downloads</div></div>
       <div class="inline"><button class="btn" data-action="open" data-what="game">${ICON.folder}Game folder</button><button class="btn" data-action="open" data-what="data">${ICON.folder}Launcher folder</button></div></div>
 `;
-  else if (t === 'account') panel = `
+  else if (t === 'look') {
+    const cur = (st.accent || '#f07f2a').toLowerCase();
+    panel = `<div class="field"><div><div class="label">Accent colour</div><div class="hint">Buttons, highlights and selections. The flame stays orange.</div></div>
+      <div class="accents">${ACCENTS.map(([c, n]) => `<button class="accent-sw ${cur === c ? 'on' : ''}" data-action="accent-pick" data-v="${c}" title="${n}" aria-label="${n}" style="--c:${c}"></button>`).join('')}
+      <label class="accent-sw custom ${ACCENTS.some(([c]) => c === cur) ? '' : 'on'}" title="Custom colour" style="--c:${cur}"><input type="color" id="accent-custom" value="${cur}" aria-label="Custom accent colour"></label></div></div>`;
+  } else if (t === 'account') panel = `
     <div class="field"><div><div class="label">Microsoft account</div><div class="hint">${prof ? 'Signed in' : 'Not signed in'}</div></div>
       <div class="inline">${prof ? `<b>${esc(prof.name)}</b><button class="btn" data-action="logout">Sign out</button>` : `<button class="btn primary" data-action="signin">${ICON.msLogo}Sign in with Microsoft</button>`}</div></div>
     <div class="field"><div><div class="label">Sign-in app</div><div class="hint">Which Microsoft app ID Auroria signs in with</div></div>
@@ -490,7 +506,7 @@ function pageSettings() {
   else panel = `
     <div class="field"><div><div class="label">Auroria Launcher</div><div class="hint">Version ${esc(S.state.version)}</div></div><div class="sub">Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Studios.</div></div>
     <div class="field"><div><div class="label">Data folder</div></div><div class="sub" style="word-break:break-all">${esc(S.state.dataDir)}</div></div>`;
-  const tabs = [['game', 'Game'], ['java', 'Java and memory'], ['launcher', 'Launcher'], ['account', 'Account'], ['about', 'About']];
+  const tabs = [['game', 'Game'], ['java', 'Java and memory'], ['launcher', 'Launcher'], ['look', 'Appearance'], ['account', 'Account'], ['about', 'About']];
   return `<header class="page-head"><h1>Settings</h1><p>Changes save automatically and apply the next time you press Play.</p></header>
   <div class="settings-layout${Date.now() - (S.settingsFx || 0) < 200 ? ' fx' : ''}"><nav class="subnav" aria-label="Settings sections">${tabs.map(([k, l]) => `<button class="${t === k ? 'active' : ''}" data-action="settings-tab" data-tab="${k}">${l}</button>`).join('')}</nav>
   <div class="card form">${panel}</div></div>`;
@@ -541,9 +557,9 @@ const profileImg = (sid, kind, name) => `/api/profile-image?server=${encodeURICo
 const MG = { id: '', tab: 'worlds', worlds: null, shots: null, pings: {}, confirm: '' };
 const mgServer = () => servers().find((x) => x.id === MG.id);
 function manageModal(id, tab) {
-  Object.assign(MG, { id, tab: tab || 'worlds', worlds: null, shots: null, confirm: '' });
+  Object.assign(MG, { id, tab: tab || 'worlds', worlds: null, shots: null, snaps: null, confirm: '' });
   const s = mgServer(); if (!s) return;
-  const tabs = [['worlds', 'Worlds'], ['shots', 'Screenshots'], ['servers', 'Servers'], ['options', 'Settings sync']];
+  const tabs = [['worlds', 'Worlds'], ['snaps', 'Snapshots'], ['perf', 'Performance'], ['shots', 'Screenshots'], ['servers', 'Servers'], ['options', 'Settings sync']];
   modal(`<div class="mg-head"><span class="p-icon" style="${iconStyle(s.color, s.icon)}">${s.icon ? '' : esc(initials(s.name))}</span>
       <div><h2>${esc(s.name)}</h2><p class="sub">${esc(s.version)} ${loaderLabel(s)} · ${s.playMs ? `${fmtDur(s.playMs)} played` : 'Not played yet'}</p></div></div>
     <div class="tabs mg-tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab ${MG.tab === k ? 'active' : ''}" role="tab" aria-selected="${MG.tab === k}" data-action="mg-tab" data-v="${k}">${l}</button>`).join('')}</div>
@@ -557,6 +573,7 @@ async function mgLoad() {
   if (MG.tab === 'worlds') { try { MG.worlds = await api('GET', `/api/worlds?server=${encodeURIComponent(s.id)}`); } catch (e) { MG.worlds = []; toast(e.message, true); } }
   if (MG.tab === 'shots') { try { MG.shots = await api('GET', `/api/shots?server=${encodeURIComponent(s.id)}`); } catch (e) { MG.shots = []; toast(e.message, true); } }
   if (MG.tab === 'servers') for (const x of s.serverList || []) mgPing(x.address);
+  if (MG.tab === 'snaps' || MG.tab === 'perf') return mgLoadExtra();
   mgDraw();
 }
 async function mgPing(address) {
@@ -566,6 +583,7 @@ async function mgPing(address) {
 }
 const SPIN = (t) => `<div class="sub mg-empty"><span class="spinner"></span>${t}</div>`;
 function mgBody(s) {
+  if (MG.tab === 'snaps' || MG.tab === 'perf') return mgExtraBody(s);
   if (MG.tab === 'worlds') {
     if (!MG.worlds) return SPIN('Reading worlds…');
     const rows = MG.worlds.map((w) => `<div class="mg-world"><div class="mg-row"><span class="mg-ico">${w.icon ? `<img src="${profileImg(s.id, 'world', w.name)}" alt="">` : ''}</span>
@@ -605,6 +623,89 @@ function mgBody(s) {
     <span>What</span><div class="mg-checks">${[['controls', 'Controls and key binds'], ['video', 'Video settings'], ['sound', 'Sound volumes']].map(([k, l]) => `<label><input type="checkbox" class="mg-grp" value="${k}" checked> ${l}</label>`).join('')}</div></div>
     <div class="inline mg-foot"><button class="btn primary" data-action="mg-sync">Copy settings</button><span class="sub" id="mg-sync-out"></span></div>`;
 }
+/* ---------------- resource packs and shaders ---------------- */
+async function loadPacks() {
+  const type = S.modTab === 'shaders' ? 'shader' : 'resourcepack'; const sid = selected().id;
+  if (!S.packs || S.packs.type !== type || S.packs.sid !== sid) { S.packs = { type, sid, list: null }; render(); }
+  try { S.packs = { type, sid, list: await api('GET', `/api/packs?server=${encodeURIComponent(sid)}&type=${type}`) }; } catch (e) { S.packs = { type, sid, list: [] }; toast(e.message, true); }
+  render();
+}
+const GRIP = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>';
+function packsBody(type) {
+  const ok = S.packs && S.packs.type === type && S.packs.sid === selected().id;
+  const list = ok ? S.packs.list : null;
+  const del = (n) => `<button class="iconbtn" data-action="pack-delete" data-name="${esc(n)}" aria-label="Delete ${esc(n)}" title="Delete">${ICON.trash}</button>`;
+  const clean = (n) => esc(n.replace(/\.zip$/i, ''));
+  let rows;
+  if (!list) rows = '<div class="empty"><span class="spinner"></span></div>';
+  else if (!list.length) rows = `<div class="empty"><strong>No ${type === 'shader' ? 'shaders' : 'resource packs'} yet</strong>Find some under Browse, or drop .zip files into the folder.</div>`;
+  else if (type === 'shader') {
+    const any = list.some((x) => x.enabled);
+    rows = [`<div class="mod pack"><div class="mod-name"><span class="radio ${any ? '' : 'on'}"></span><div><b>Off</b><small>Play without shaders</small></div></div><span></span><div class="mod-actions"><button class="btn small ${any ? '' : 'primary'}" data-action="shader-pick" data-name="">${any ? 'Use' : 'In use'}</button></div></div>`,
+      ...list.map((x) => `<div class="mod pack"><div class="mod-name"><span class="radio ${x.enabled ? 'on' : ''}"></span><div><b>${clean(x.name)}</b><small>${esc(x.name)}</small></div></div><span></span><div class="mod-actions">${del(x.name)}<button class="btn small ${x.enabled ? 'primary' : ''}" data-action="shader-pick" data-name="${esc(x.name)}">${x.enabled ? 'In use' : 'Use'}</button></div></div>`)].join('');
+  } else {
+    const on = list.filter((x) => x.enabled); const off = list.filter((x) => !x.enabled);
+    const row = (x, i) => `<div class="mod pack ${x.enabled ? 'drag' : ''}" ${x.enabled ? 'draggable="true"' : ''} data-name="${esc(x.name)}"><div class="mod-name">${x.enabled ? `<span class="grip" title="Drag to reorder">${GRIP}</span><span class="pack-pos tnum">${i + 1}</span>` : '<span class="grip off"></span><span class="pack-pos"></span>'}<div><b>${clean(x.name)}</b><small>${esc(x.name)}</small></div></div><span></span>
+      <div class="mod-actions">${del(x.name)}<button class="switch" role="switch" aria-checked="${x.enabled}" aria-label="${clean(x.name)}" data-action="pack-toggle" data-name="${esc(x.name)}"></button></div></div>`;
+    rows = `${on.length ? `<div class="pack-sec">On · top wins</div><div id="pack-on">${on.map(row).join('')}</div>` : ''}${off.length ? `<div class="pack-sec">Off</div>${off.map((x) => row(x, 0)).join('')}` : ''}`;
+  }
+  return `<div class="card list"><div class="list-head"><span>${type === 'shader' ? 'SHADER' : 'RESOURCE PACK'}</span><span></span><span style="text-align:right">${type === 'shader' ? '' : 'ON'}</span></div><div class="list-body">${rows}</div></div>`;
+}
+async function savePackOrder(order) {
+  try { S.packs.list = await api('POST', '/api/packs/order', { server: selected().id, order }); } catch (e) { toast(e.message, true); }
+  render();
+}
+let packDrag = null;
+document.addEventListener('dragstart', (e) => { const r = e.target.closest && e.target.closest('.pack.drag'); if (!r) return; packDrag = r; r.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', r.dataset.name); } catch {} });
+document.addEventListener('dragover', (e) => {
+  if (!packDrag) return; const over = e.target.closest && e.target.closest('#pack-on .pack.drag'); if (!over || over === packDrag) { if (over) e.preventDefault(); return; }
+  e.preventDefault(); const r = over.getBoundingClientRect(); over.parentNode.insertBefore(packDrag, e.clientY < r.top + r.height / 2 ? over : over.nextSibling);
+});
+document.addEventListener('drop', (e) => { if (packDrag) e.preventDefault(); });
+document.addEventListener('dragend', () => {
+  if (!packDrag) return; packDrag.classList.remove('dragging'); packDrag = null;
+  const order = [...document.querySelectorAll('#pack-on .pack.drag')].map((x) => x.dataset.name);
+  const before = (S.packs.list || []).filter((x) => x.enabled).map((x) => x.name);
+  if (order.join('\n') !== before.join('\n')) savePackOrder(order);
+});
+
+/* ---------------- theme ---------------- */
+const ACCENTS = [['#f07f2a', 'Ember'], ['#e5484d', 'Redstone'], ['#f5b82e', 'Gold'], ['#5fb34a', 'Emerald'], ['#2ec4b6', 'Diamond'], ['#4a8fe0', 'Lapis'], ['#9b6cf0', 'Amethyst'], ['#e85d9e', 'Pink']];
+const applyAccent = (hex) => { window.auroriaAccent(hex); lightHome(); };
+// The home character is lit by the theme's scene: sun, fill and haze take its colours.
+function lightHome() {
+  const v = S.homeViewer; const t = window.auroriaTheme; if (!v || !t || !v.__sun) return;
+  v.__sun.color.set(t.sun); v.globalLight.color.set(t.amb); if (t.cam) v.cameraLight.color.set(t.cam); else { v.cameraLight.color.set(t.sun); v.cameraLight.color.lerp(v.globalLight.color, 0.5); }
+  if (v.scene.fog) v.scene.fog.color.set(t.fog);
+}
+
+/* ---------------- snapshots and presets (manage window) ---------------- */
+async function mgLoadExtra() {
+  const s = mgServer(); if (!s) return;
+  if (MG.tab === 'snaps') { try { MG.snaps = await api('GET', `/api/snapshots?server=${encodeURIComponent(s.id)}`); } catch (e) { MG.snaps = []; toast(e.message, true); } }
+  if (MG.tab === 'perf' && !MG.presets) { try { MG.presets = await api('GET', '/api/presets'); } catch (e) { toast(e.message, true); } }
+  mgDraw();
+}
+const SNAP_LABEL = { manual: 'Saved by you', 'before-update': 'Before updating mods', 'before-restore': 'Before restoring a snapshot' };
+function mgExtraBody(s) {
+  if (MG.tab === 'snaps') {
+    if (!MG.snaps) return SPIN('Reading snapshots…');
+    const rows = MG.snaps.map((x) => `<div class="mg-row"><div class="mg-info"><b>${esc(new Date(x.time).toLocaleString())}</b><small>${esc(SNAP_LABEL[x.label] || x.label)} · ${fmtBytes(x.size)}</small></div>
+      <button class="btn small ${MG.confirm === `sr:${x.file}` ? 'primary' : ''}" data-action="snap-restore" data-file="${esc(x.file)}">${MG.confirm === `sr:${x.file}` ? 'Confirm restore' : 'Restore'}</button>
+      <button class="btn small ${MG.confirm === `sd:${x.file}` ? 'danger' : ''}" data-action="snap-delete" data-file="${esc(x.file)}">${MG.confirm === `sd:${x.file}` ? 'Confirm delete' : 'Delete'}</button></div>`).join('');
+    return `<div class="inline mg-foot" style="margin:0 0 10px"><button class="btn primary small" data-action="snap-take">${ICON.plus}Take snapshot</button></div>
+      ${rows || '<div class="sub mg-empty">No snapshots yet.</div>'}
+      <p class="sub mg-note">A snapshot saves this profile's mods and their settings. Auroria takes one by itself before updating mods, so a bad update can be undone. Restoring takes a snapshot of the current state first.</p>`;
+  }
+  if (!MG.presets) return SPIN('Loading presets…');
+  const cards = MG.presets.presets.map((p) => `<div class="preset ${s.preset === p.key ? 'on' : ''}"><b>${esc(p.name)}</b>
+      <ul><li>${p.ramGB} GB memory</li><li>${p.video.renderDistance} chunk view distance</li><li>${p.video.graphics ? 'Fancy' : 'Fast'} graphics</li><li>${p.video.maxFps >= 260 ? 'Unlimited' : p.video.maxFps} FPS cap</li></ul>
+      <button class="btn small ${s.preset === p.key ? '' : 'primary'}" data-action="preset-apply" data-v="${p.key}">${s.preset === p.key ? 'Apply again' : 'Apply'}</button></div>`).join('');
+  return `<p class="sub" style="margin:4px 0 14px">One click sets memory, Java garbage-collector flags and video settings for ${esc(s.name)}. Your PC has ${MG.presets.totalGB} GB of RAM.</p>
+    <div class="presets">${cards}</div>
+    <p class="sub mg-note">Video settings are written to this profile's options.txt, so you can still change them in game afterwards.</p>`;
+}
+
 let depResolve = null;
 // Asks before removing or turning off a mod that other installed mods list as required.
 async function confirmDependents(file, verb) {
@@ -843,6 +944,7 @@ function go(page) {
     if (selected().loader === 'vanilla') { S.modTab = 'browse'; S.browseType = 'resourcepack'; searchMods(); }
     else { if (S.browseType === 'resourcepack' && S.modTab === 'browse' && S.lastVanilla) S.browseType = 'mod'; loadMods(); if (S.modTab === 'browse') searchMods(); }
     S.lastVanilla = selected().loader === 'vanilla';
+    if (S.modTab === 'packs' || S.modTab === 'shaders') loadPacks();
   }
   if (page === 'skins') loadSkins();
 }
@@ -1027,7 +1129,7 @@ const actions = {
   'server-tag': (el) => { S.serverTag = el.dataset.tag; render(); },
   'select-server': async (el) => { await saveSettings({ selectedServer: el.dataset.id }); S.mods = null; S.modsServer = null; render(); toast(`Switched to ${selected().name}`); },
   'play-here': () => { go('home'); if (S.state.profile && S.state.game.state === 'idle') actions.launch(); },
-  'mod-tab': (el) => { S.modTab = el.dataset.tab; S.modQuery = ''; render(); if (S.modTab === 'browse') searchMods(); },
+  'mod-tab': (el) => { S.modTab = el.dataset.tab; S.modQuery = ''; render(); if (S.modTab === 'browse') searchMods(); if (S.modTab === 'packs' || S.modTab === 'shaders') loadPacks(); },
   'mod-toggle': async (el) => {
     const file = el.dataset.file;
     if (el.getAttribute('aria-checked') === 'true' && !(await confirmDependents(file, 'Turn off'))) return;
@@ -1057,6 +1159,49 @@ const actions = {
     delete S.busy[id]; render();
   },
   manage: (el) => manageModal(el.dataset.id),
+  'profile-shortcut': async (el) => {
+    try { const r = await api('POST', '/api/profile/shortcut', { server: el.dataset.id }); toast(`Added "${r.name}" to your desktop. It opens Auroria and plays this profile.`); }
+    catch (e) { toast(e.message, true); }
+  },
+  'pack-toggle': async (el) => {
+    const n = el.dataset.name; const on = (S.packs.list || []).filter((x) => x.enabled).map((x) => x.name);
+    savePackOrder(on.includes(n) ? on.filter((x) => x !== n) : [n, ...on]);
+  },
+  'pack-delete': async (el) => {
+    const n = el.dataset.name; const type = S.packs.type;
+    if (el.dataset.armed !== '1') { el.dataset.armed = '1'; el.classList.add('armed'); el.title = 'Click again to delete'; toast(`Click the bin again to delete ${n}`); return; }
+    try { S.packs.list = await api('POST', '/api/packs/delete', { server: selected().id, type, name: n }); toast('Deleted'); } catch (e) { toast(e.message, true); }
+    render();
+  },
+  'shader-pick': async (el) => {
+    try { S.packs.list = await api('POST', '/api/packs/shader', { server: selected().id, name: el.dataset.name }); toast(el.dataset.name ? 'Shader switched on for your next game' : 'Shaders switched off'); } catch (e) { toast(e.message, true); }
+    render();
+  },
+  'snap-take': async (el) => {
+    el.disabled = true; el.innerHTML = '<span class="spinner"></span>Saving…';
+    try { MG.snaps = await api('POST', '/api/snapshots/take', { server: MG.id }); toast('Snapshot saved'); } catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'snap-restore': async (el) => {
+    const f = el.dataset.file;
+    if (MG.confirm !== `sr:${f}`) { MG.confirm = `sr:${f}`; mgDraw(); return; }
+    MG.confirm = ''; el.disabled = true; el.innerHTML = '<span class="spinner"></span>Restoring…';
+    try { MG.snaps = await api('POST', '/api/snapshots/restore', { server: MG.id, file: f }); S.mods = null; S.modsServer = null; toast('Snapshot restored. The previous state was saved first.'); } catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'snap-delete': async (el) => {
+    const f = el.dataset.file;
+    if (MG.confirm !== `sd:${f}`) { MG.confirm = `sd:${f}`; mgDraw(); return; }
+    MG.confirm = '';
+    try { MG.snaps = await api('POST', '/api/snapshots/delete', { server: MG.id, file: f }); } catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'preset-apply': async (el) => {
+    el.disabled = true;
+    try { const r = await api('POST', '/api/profile/preset', { server: MG.id, preset: el.dataset.v }); S.state.config.servers = r.servers; toast(`${el.closest('.preset').querySelector('b').textContent} applied`); } catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'accent-pick': async (el) => { applyAccent(el.dataset.v); await saveSettings({ accent: el.dataset.v }); render(); },
   'p-more': (el) => { S.pMenu = S.pMenu === el.dataset.id ? '' : el.dataset.id; render(); },
   'share-profile': async (el) => {
     const s = servers().find((x) => x.id === el.dataset.id); el.disabled = true;
@@ -1233,6 +1378,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', async (e) => {
   const t = e.target;
   if (t.id === 'pm-java' || t.id === 'srv-version') pmJavaHint();
+  if (t.id === 'accent-custom') { applyAccent(t.value); await saveSettings({ accent: t.value }); render(); }
   if (t.id === 'browse-sort') { S.browseSort = t.value; searchMods(); }
   else if (t.id === 'profile-sort') { S.profileSort = t.value; render(); }
   else if (t.id === 'mods-ram' || t.id === 'set-ram') await saveSettings({ ramGB: Number(t.value) });
@@ -1291,6 +1437,7 @@ function connectEvents() {
     } else if (ev.type === 'log') logIngest(ev.line);
     else if (ev.type === 'quit') { window.close(); }
     else if (ev.type === 'notice') { toast(ev.message); }
+    else if (ev.type === 'autoplay') autoPlay(ev.id);
     else if (ev.type === 'window') { S.state.windowControls = NATIVE || !!ev.ready; render(true); }
   };
   es.onerror = () => { /* EventSource retries by itself */ };
@@ -1447,13 +1594,22 @@ async function revealWhenLoaded() {
 (async function boot() {
   try { S.state = await api('GET', '/api/state'); }
   catch (e) { $('#page').innerHTML = `<div class="empty"><strong>Auroria could not start</strong>${esc(e.message)}. Close this window and open Auroria again.</div>`; return; }
+  applyAccent(S.state.settings.accent);
   render(); connectEvents(); loadPings(); revealWhenLoaded();
+  if (S.state.autoPlay) autoPlay(S.state.autoPlay);
   api('GET', '/api/logs').then((r) => { (r.lines || []).forEach(logAdd); render(); }).catch(() => {});
   setInterval(() => { if (S.page === 'home' || S.page === 'servers') loadPings(); }, 30000);
   setInterval(checkModsFolder, 1500);
   window.addEventListener('focus', checkModsFolder);
   setTimeout(checkForUpdate, 2500);
 })();
+// A desktop shortcut started (or re-focused) Auroria for one profile: select it and press Play.
+async function autoPlay(id) {
+  if (!servers().some((x) => x.id === id)) return;
+  S.state.settings.selectedServer = id; S.mods = null; S.modsServer = null;
+  go('home');
+  if (!S.state.profile) signIn(); else if (S.state.game.state === 'idle') actions.launch();
+}
 async function checkForUpdate() {
   try {
     const u = await api('GET', '/api/update/check'); if (!u.available) return;
