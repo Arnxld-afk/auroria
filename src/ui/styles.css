@@ -614,3 +614,52 @@ html, body { font-size: 13px; }
 .log, .logview, .logview .ll, .code { font-family: 'Monocraft', Consolas, monospace; }
 .ms-logo { width: 16px; height: 16px; flex: none; }
 .chip.signin { display: inline-flex; align-items: center; gap: 10px; }
+
+/* ---- playtime on profile cards ---- */
+.p-time { justify-content: flex-start; }
+.p-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-left: auto; }
+.p-bars i { width: 5px; border-radius: 1px; background: rgba(255,255,255,.14); }
+.p-bars i.on { background: var(--accent); }
+
+/* ---- manage window: worlds, screenshots, servers, settings sync ---- */
+.modal:has(.mg-head) { width: 820px; }
+.mg-head { display: flex; align-items: center; gap: 14px; }
+.mg-head .p-icon { width: 48px; height: 48px; font-size: 17px; }
+.mg-head p { margin: 2px 0 0; }
+.mg-tabs { margin: 18px 0 6px; border-bottom: 1px solid var(--line-2); }
+.mg-body { min-height: 260px; max-height: 52vh; overflow: auto; padding: 8px 2px 4px; }
+.mg-empty { display: flex; align-items: center; gap: 8px; padding: 26px 4px; }
+.mg-note { margin: 14px 0 0; font-size: 12px; }
+.mg-foot { margin-top: 14px; gap: 10px; }
+.mg-world { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.mg-world:last-of-type { border-bottom: 0; }
+.mg-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.mg-ico { width: 40px; height: 40px; flex: none; border-radius: 8px; overflow: hidden; background: #3d6b2a linear-gradient(#5fa63a 0 30%, #6b4a2b 30%); }
+.mg-ico img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+.mg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mg-info small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-srv { display: flex; align-items: center; gap: 6px; }
+.mg-backups { margin: 4px 0 0 52px; display: flex; flex-direction: column; gap: 4px; }
+.mg-brow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--soft); }
+.mg-brow span { flex: 1; }
+.mg-brow .btn { height: 28px; padding: 0 10px; font-size: 12px; }
+.mg-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.mg-shot { position: relative; padding: 0; border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; cursor: pointer; }
+.mg-shot img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s var(--ease); }
+.mg-shot:hover img { transform: scale(1.05); }
+.mg-shot span { position: absolute; left: 6px; bottom: 6px; padding: 2px 6px; border-radius: 5px; background: rgba(0,0,0,.65); font-size: 11px; }
+.mg-add { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 8px; margin-top: 14px; }
+.mg-add .input { height: 36px; }
+.mg-checks { display: flex; flex-direction: column; gap: 6px; }
+.mg-checks label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+
+/* ---- update bar ---- */
+.update-bar { position: fixed; right: 22px; bottom: 22px; z-index: 31; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 18px; border-radius: 14px; background: #24190f; border: 1px solid rgba(240,127,42,.5); box-shadow: 0 14px 36px rgba(0,0,0,.55); animation: toast .35s var(--ease) both; }
+.update-bar span { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
+.update-bar b { font-size: 14px; color: var(--fg); }
+.p-actions { position: relative; }
+.p-menu { top: auto; bottom: 38px; z-index: 5; transform-origin: bottom right; }
+.p-menu .danger { color: #ff9d8d; }
+.p-menu svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.iconbtn.on { background: var(--panel-2); color: var(--fg); }
+.profile:has(.p-menu) { overflow: visible; z-index: 3; }

@@ -1,5 +1,5 @@
 'use strict';
-// Auroria Launcher — backend.
+// Auroria Launcher â€” backend.
 // Runs as a single Windows executable (Node SEA). Serves the UI on 127.0.0.1 and
 // opens it in a chromeless Microsoft Edge app window. Uses only Node built-ins.
 
@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const zlib = require('zlib');
 const { spawn } = require('child_process');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const UA = `Auroria-Launcher/${VERSION}`;
 const IS_WIN = process.platform === 'win32';
 
@@ -232,7 +232,7 @@ async function msToMinecraft(msAccess, mode) {
   try {
     mc = await postJson('https://api.minecraftservices.com/authentication/login_with_xbox', { identityToken: `XBL3.0 x=${uhs};${xsts.Token}` });
   } catch (e) {
-    if ((e.status === 403 || e.status === 401) && mode === 'azure') throw new Error('Minecraft has not approved your own app ID yet. Clear it in Settings → Account to use the built-in sign-in instead.');
+    if ((e.status === 403 || e.status === 401) && mode === 'azure') throw new Error('Minecraft has not approved your own app ID yet. Clear it in Settings â†’ Account to use the built-in sign-in instead.');
     throw e;
   }
   let profile;
@@ -698,7 +698,7 @@ const PACK_TYPES = {
   resourcepack: { dir: 'resourcepacks', loaders: () => ['minecraft'], label: 'resource pack' },
   shader: { dir: 'shaderpacks', loaders: () => ['iris', 'optifine'], label: 'shader' },
 };
-async function installModProject(server, projectId, visited = new Set(), type = 'mod') {
+async function installModProject(server, projectId, visited = new Set(), type = 'mod', have = new Set()) {
   if (visited.has(projectId)) return;
   visited.add(projectId);
   const T = PACK_TYPES[type] || PACK_TYPES.mod;
@@ -716,8 +716,51 @@ async function installModProject(server, projectId, visited = new Set(), type = 
   await saveModIndex(server, idx);
   if (type !== 'mod') return;
   for (const d of v.dependencies || []) {
-    if (d.dependency_type === 'required' && d.project_id && !idx[d.project_id]) await installModProject(server, d.project_id, visited);
+    if (d.dependency_type === 'required' && d.project_id && !idx[d.project_id] && !have.has(d.project_id)) await installModProject(server, d.project_id, visited, 'mod', have);
   }
+}
+// Enabled mods that list this one as a required dependency on Modrinth.
+async function modDependents(server, file) {
+  const mods = await listMods(server);
+  const target = mods.find((m) => m.file === file);
+  if (!target || !target.projectId) return [];
+  const others = mods.filter((m) => m.enabled && m.file !== file && m.projectId);
+  if (!others.length) return [];
+  const byHash = await postJson(`${MR}/version_files`, { hashes: others.map((m) => m.sha1), algorithm: 'sha1' }, { 'User-Agent': UA }).catch(() => ({}));
+  return others.filter((m) => ((byHash[m.sha1] || {}).dependencies || []).some((d) => d.dependency_type === 'required' && d.project_id === target.projectId)).map((m) => m.title);
+}
+
+// ---------- Java picker: installs found on this PC plus Auroria's own runtimes ----------
+async function javaRelease(home) {
+  try { const t = await fsp.readFile(path.join(home, 'release'), 'utf8'); const m = /JAVA_VERSION="([^"]+)"/.exec(t); if (m) return m[1]; } catch {}
+  return '';
+}
+const javaMajor = (v) => { const p = String(v).split(/[._-]/).map(Number); return p[0] === 1 ? p[1] || 0 : p[0] || 0; };
+async function detectJavas() {
+  const exeName = IS_WIN ? 'javaw.exe' : 'java';
+  const homes = new Map();
+  const addHome = (home, source) => { const k = path.resolve(home).toLowerCase(); if (!homes.has(k)) homes.set(k, { home: path.resolve(home), source }); };
+  const scan = async (root, source, depth = 1) => {
+    let ents = []; try { ents = await fsp.readdir(root, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) if (e.isDirectory()) { const d = path.join(root, e.name); if (await exists(path.join(d, 'bin', exeName))) addHome(d, source); else if (depth > 1) await scan(d, source, depth - 1); }
+  };
+  if (IS_WIN) {
+    for (const pf of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean)) {
+      for (const vendor of ['Java', 'Eclipse Adoptium', 'Eclipse Foundation', 'Zulu', 'Microsoft', 'BellSoft', 'Amazon Corretto', 'Semeru', 'AdoptOpenJDK', 'GraalVM']) await scan(path.join(pf, vendor), vendor === 'Java' ? 'Oracle / OpenJDK' : vendor);
+    }
+    await scan(path.join(os.homedir(), '.jdks'), 'IntelliJ');
+  } else {
+    await scan('/usr/lib/jvm', 'System'); await scan('/Library/Java/JavaVirtualMachines', 'System', 3);
+  }
+  if (process.env.JAVA_HOME && await exists(path.join(process.env.JAVA_HOME, 'bin', exeName))) addHome(process.env.JAVA_HOME, 'JAVA_HOME');
+  await scan(P.runtime, 'Auroria');
+  const list = [];
+  for (const { home, source } of homes.values()) {
+    let version = await javaRelease(home);
+    if (!version && source === 'Auroria') { try { version = (await fsp.readFile(path.join(home, '.complete'), 'utf8')).trim(); } catch {} }
+    list.push({ path: path.join(home, 'bin', exeName), version: version || 'unknown', major: javaMajor(version), source });
+  }
+  return list.sort((a, b) => b.major - a.major || a.path.localeCompare(b.path));
 }
 // ---------- Auroria Client: curated Lunar-style mods + in-game UI pack ----------
 const CLIENT_MODS = [
@@ -991,7 +1034,7 @@ async function buildClientSkin(server, gameDir) {
   }
   const mm = { 'modmenu.nameTranslation.axolotlclient': 'Auroria Client', 'modmenu.descriptionTranslation.axolotlclient': 'Auroria\'s in-game client: HUD mods, keystrokes, CPS, zoom, freelook and more. Powered by AxolotlClient.' };
   files.push({ name: 'assets/auroria/lang/en_us.json', data: Buffer.from(JSON.stringify(mm, null, 1)) });
-  files.push({ name: 'pack.mcmeta', data: Buffer.from(JSON.stringify({ pack: { pack_format: 15, supported_formats: [1, 99], min_format: 1, max_format: 99, description: '§6Auroria Client§r skin' } })) });
+  files.push({ name: 'pack.mcmeta', data: Buffer.from(JSON.stringify({ pack: { pack_format: 15, supported_formats: [1, 99], min_format: 1, max_format: 99, description: 'Â§6Auroria ClientÂ§r skin' } })) });
   files.push({ name: 'pack.png', data: ui['pack.png'].read() });
   await ensureDir(dir);
   await fsp.writeFile(dest, writeZip(files));
@@ -1068,7 +1111,9 @@ async function pingServer(address, timeout = 3000) {
         const len = rv(); if (buf.length - off < len) return;
         rv(); const sl = rv();
         const json = JSON.parse(buf.slice(off, off + sl).toString('utf8'));
-        done({ online: true, players: (json.players || {}).online || 0, max: (json.players || {}).max || 0, version: (json.version || {}).name || '', latency: Date.now() - start });
+        const flat = (c) => (typeof c === 'string' ? c : c ? (c.text || '') + (c.extra || []).map(flat).join('') : '');
+        const motd = flat(json.description).replace(/Â§./g, '').trim().slice(0, 160);
+        done({ online: true, players: (json.players || {}).online || 0, max: (json.players || {}).max || 0, version: (json.version || {}).name || '', latency: Date.now() - start, motd });
       } catch (e) { if (e.message !== 'more') done({ online: false }); }
     });
   });
@@ -1167,7 +1212,7 @@ function diagnoseCrash(lines) {
 }
 
 // ---------- launch ----------
-async function launch(serverId) {
+async function launch(serverId, join = '') {
   if (game.state !== 'idle') throw new Error('The game is already starting or running.');
   const server = serverById(serverId);
   game.serverId = server.id;
@@ -1177,7 +1222,7 @@ async function launch(serverId) {
   try {
     const acc = await ensureFreshAccount();
     const profile = await resolveProfile(server);
-    const java = await ensureJava(profile.javaComponent);
+    const java = server.javaPath && await exists(server.javaPath) ? server.javaPath : await ensureJava(profile.javaComponent);
     const gameDir = instanceDir(server);
     await ensureDir(gameDir);
     const { jar, logArg, gameAssets } = await installFiles(profile, gameDir);
@@ -1186,7 +1231,7 @@ async function launch(serverId) {
     if (clientModded(server)) await applyOwnClient(server, own);
     await ensureClientPack(server, gameDir).catch((e) => logLine('pack failed', e.message));
     if (clientModded(server) && !own) await buildClientSkin(server, gameDir).catch((e) => logLine('client skin failed', e.message));
-    const { args } = buildLaunchArgs({ profile, jar, gameDir, acc, server, logArg, gameAssets });
+    const { args } = buildLaunchArgs({ profile, jar, gameDir, acc, server: join ? { ...server, address: join } : server, logArg, gameAssets });
     server.lastPlayed = Date.now();
     await writeJson(P.servers, config.servers).catch(() => {});
     setProgress('Starting Minecraft', 1, 1);
@@ -1208,8 +1253,11 @@ async function launch(serverId) {
     };
     proc.stdout.on('data', onData); proc.stderr.on('data', onData);
     setGameState('running');
+    const startedAt = Date.now();
     proc.on('exit', (code) => {
       game.proc = null;
+      addPlaytime(server, startedAt, Date.now());
+      writeJson(P.servers, config.servers).catch(() => {});
       const crashed = code && !game.userStopped;
       setGameState('idle', crashed ? { error: `Minecraft closed with code ${code}. Check the game log.`, crash: diagnoseCrash(game.logs) } : {});
       maybeExit();
@@ -1394,6 +1442,202 @@ async function importMrpack(buf) {
   }));
   return { ...(await commitProfile(entry)), failed };
 }
+// Modrinth modpack from Browse: newest version's .mrpack, then the same import path as a dropped file.
+async function installModpack(projectId) {
+  if (!/^[A-Za-z0-9]{2,64}$/.test(projectId || '')) throw new Error('Unknown modpack.');
+  const [project, versions] = await Promise.all([getJson(`${MR}/project/${projectId}`), getJson(`${MR}/project/${projectId}/version`)]);
+  const ver = versions.find((v) => (v.files || []).some((f) => f.filename.endsWith('.mrpack')));
+  if (!ver) throw new Error('That modpack has no downloadable version.');
+  const file = ver.files.find((f) => f.primary && f.filename.endsWith('.mrpack')) || ver.files.find((f) => f.filename.endsWith('.mrpack'));
+  let res; try { res = await fetch(file.url, { headers: { 'User-Agent': UA } }); } catch (e) { throw netError(file.url, e); }
+  if (!res.ok) throw new Error(`Modpack download failed (HTTP ${res.status}).`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (file.hashes && file.hashes.sha1 && sha1(buf) !== file.hashes.sha1) throw new Error('The modpack download was corrupted. Try again.');
+  const r = await importMrpack(buf);
+  const entry = config.servers.find((s) => s.id === r.id);
+  if (entry && project.icon_url) {
+    try {
+      const ir = await fetch(project.icon_url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
+      const type = (ir.headers.get('content-type') || '').split(';')[0];
+      const ib = Buffer.from(await ir.arrayBuffer());
+      if (ir.ok && /^image\/(png|jpeg|webp|gif)$/.test(type) && ib.length <= 150000) { entry.icon = `data:${type};base64,${ib.toString('base64')}`; await writeJson(P.servers, config.servers); }
+    } catch {}
+  }
+  if (entry && project.description) { entry.description = String(project.description).slice(0, 120); await writeJson(P.servers, config.servers); }
+  return { ...r, servers: config.servers };
+}
+
+// ---------- profile sharing: export as a Modrinth .mrpack that Auroria, the Modrinth App and Prism can import ----------
+async function exportProfile(s) {
+  const dir = instanceDir(s);
+  const depKey = { fabric: 'fabric-loader', quilt: 'quilt-loader', forge: 'forge', neoforge: 'neoforge' };
+  const dependencies = { minecraft: s.version };
+  if (depKey[s.loader]) {
+    let lv = s.loaderVersion || String(await pickLoaderVersion(s).catch(() => '') || '');
+    if (lv.startsWith(`${s.version}-`)) lv = lv.slice(s.version.length + 1);
+    if (lv.endsWith(`-${s.version}`)) lv = lv.slice(0, -s.version.length - 1);
+    if (!lv) throw new Error('Auroria could not work out which loader version this profile uses. Check your connection and try again.');
+    dependencies[depKey[s.loader]] = lv;
+  }
+  const local = [];
+  for (const sub of ['mods', 'resourcepacks', 'shaderpacks']) {
+    let names = []; try { names = await fsp.readdir(path.join(dir, sub)); } catch {}
+    for (const n of names) if (/\.(jar|zip)$/i.test(n)) { const buf = await fsp.readFile(path.join(dir, sub, n)); local.push({ rel: `${sub}/${n}`, buf, hash: sha1(buf) }); }
+  }
+  const known = local.length ? await postJson(`${MR}/version_files`, { hashes: local.map((f) => f.hash), algorithm: 'sha1' }).catch(() => ({})) : {};
+  const files = []; const zip = [];
+  for (const f of local) {
+    const v = known[f.hash]; const mf = v && (v.files || []).find((x) => x.hashes && x.hashes.sha1 === f.hash);
+    if (mf) files.push({ path: f.rel, hashes: { sha1: f.hash, sha512: mf.hashes.sha512 }, downloads: [mf.url], fileSize: mf.size, env: { client: 'required', server: 'optional' } });
+    else zip.push({ name: `overrides/${f.rel}`, data: f.buf });
+  }
+  const walk = async (rel) => {
+    let ents = []; try { ents = await fsp.readdir(path.join(dir, rel), { withFileTypes: true }); } catch {}
+    for (const e of ents) { const r = `${rel}/${e.name}`; if (e.isDirectory()) await walk(r); else zip.push({ name: `overrides/${r}`, data: await fsp.readFile(path.join(dir, r)) }); }
+  };
+  await walk('config');
+  if (await exists(path.join(dir, 'options.txt'))) zip.push({ name: 'overrides/options.txt', data: await fsp.readFile(path.join(dir, 'options.txt')) });
+  const index = { formatVersion: 1, game: 'minecraft', versionId: '1.0.0', name: s.name, summary: s.description || `Shared from Auroria`, files, dependencies };
+  zip.unshift({ name: 'modrinth.index.json', data: Buffer.from(JSON.stringify(index, null, 2)) });
+  const outDir = path.join(os.homedir(), 'Downloads'); await ensureDir(outDir);
+  const base = s.name.replace(/[<>:"/\\|?*\x00-\x1f]+/g, '').trim() || 'profile';
+  let out = path.join(outDir, `${base}.mrpack`); for (let n = 2; await exists(out); n++) out = path.join(outDir, `${base} (${n}).mrpack`);
+  await fsp.writeFile(out, writeZip(zip));
+  if (IS_WIN) spawn('explorer.exe', [`/select,${out}`], { detached: true, stdio: 'ignore' }).unref();
+  return { file: out, linked: files.length, bundled: zip.length - 1 };
+}
+
+// ---------- profile extras: playtime, worlds and backups, screenshots, options sync, saved servers ----------
+function addPlaytime(s, start, end) {
+  const ms = end - start; if (!(ms > 5000)) return;
+  s.playMs = (s.playMs || 0) + ms;
+  const k = new Date(end).toISOString().slice(0, 10); const days = { ...(s.playDays || {}) }; days[k] = (days[k] || 0) + ms;
+  for (const d of Object.keys(days).sort().slice(0, -30)) delete days[d];
+  s.playDays = days;
+}
+const profileBusy = (s) => game.state !== 'idle' && game.serverId === s.id;
+const savesDir = (s) => path.join(instanceDir(s), 'saves');
+const backupsDir = (s) => path.join(instanceDir(s), 'backups');
+const safeName = (n) => { const b = path.basename(String(n || '')); if (!b || b === '.' || b === '..') throw new Error('Bad name.'); return b; };
+async function treeStat(dir) {
+  let size = 0, mtime = 0;
+  const walk = async (d) => { let ents = []; try { ents = await fsp.readdir(d, { withFileTypes: true }); } catch { return; } for (const e of ents) { const p = path.join(d, e.name); if (e.isDirectory()) await walk(p); else { try { const st = await fsp.stat(p); size += st.size; mtime = Math.max(mtime, st.mtimeMs); } catch {} } } };
+  await walk(dir); return { size, mtime };
+}
+async function listWorlds(s) {
+  let names = []; try { names = (await fsp.readdir(savesDir(s), { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name); } catch {}
+  let backups = []; try { backups = await fsp.readdir(backupsDir(s)); } catch {}
+  const worlds = await Promise.all(names.map(async (n) => {
+    const st = await treeStat(path.join(savesDir(s), n));
+    const mine = await Promise.all(backups.filter((b) => b.startsWith(`${n}__`) && b.endsWith('.zip')).map(async (b) => { const bs = await fsp.stat(path.join(backupsDir(s), b)); return { file: b, size: bs.size, time: bs.mtimeMs }; }));
+    return { name: n, size: st.size, modified: st.mtime, icon: await exists(path.join(savesDir(s), n, 'icon.png')), backups: mine.sort((a, b) => b.time - a.time) };
+  }));
+  return worlds.sort((a, b) => b.modified - a.modified);
+}
+// Streams a folder into a zip one file at a time, so a large world never sits in memory whole.
+async function zipFolder(dir, outFile) {
+  const out = await fsp.open(outFile + '.part', 'w'); const central = []; let off = 0; let count = 0;
+  const walk = async (rel) => {
+    for (const e of await fsp.readdir(path.join(dir, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) { await walk(r); continue; }
+      if (e.name === 'session.lock') continue;
+      const data = await fsp.readFile(path.join(dir, r)); const comp = zlib.deflateRawSync(data); const crc = zlib.crc32(data) >>> 0; const nb = Buffer.from(r, 'utf8');
+      const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(0x0800, 6); lh.writeUInt16LE(8, 8);
+      lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(comp.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(nb.length, 26);
+      const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(0x0800, 8); ch.writeUInt16LE(8, 10);
+      ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(comp.length, 20); ch.writeUInt32LE(data.length, 24); ch.writeUInt16LE(nb.length, 28); ch.writeUInt32LE(off, 42);
+      await out.write(Buffer.concat([lh, nb, comp])); central.push(ch, nb); off += 30 + nb.length + comp.length; count++;
+      if (off > 0xfff00000 || count > 65000) throw new Error('This world is too large to back up as one zip.');
+    }
+  };
+  try {
+    await walk('');
+    const cd = Buffer.concat(central); const end = Buffer.alloc(22);
+    end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(count, 8); end.writeUInt16LE(count, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+    await out.write(Buffer.concat([cd, end])); await out.close();
+    await fsp.rename(outFile + '.part', outFile);
+  } catch (e) { await out.close().catch(() => {}); await fsp.rm(outFile + '.part', { force: true }); throw e; }
+}
+async function backupWorld(s, world) {
+  const src = path.join(savesDir(s), safeName(world));
+  if (!(await exists(src))) throw new Error('That world no longer exists.');
+  await ensureDir(backupsDir(s));
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const file = path.join(backupsDir(s), `${safeName(world)}__${stamp}.zip`);
+  await zipFolder(src, file); return path.basename(file);
+}
+async function restoreWorld(s, file) {
+  const name = safeName(file); const m = /^(.+)__\d{4}-\d\d-\d\d-\d\d-\d\d-\d\d\.zip$/.exec(name);
+  if (!m) throw new Error('That is not an Auroria world backup.');
+  const zip = path.join(backupsDir(s), name); if (!(await exists(zip))) throw new Error('That backup no longer exists.');
+  const dest = path.join(savesDir(s), m[1]);
+  if (await exists(dest)) { await backupWorld(s, m[1]); await fsp.rm(dest, { recursive: true, force: true }); }
+  await ensureDir(dest); await extractZip(zip, dest);
+}
+async function listShots(s) {
+  const dir = path.join(instanceDir(s), 'screenshots');
+  let names = []; try { names = (await fsp.readdir(dir)).filter((f) => /\.(png|jpe?g)$/i.test(f)); } catch {}
+  const items = await Promise.all(names.map(async (f) => { try { const st = await fsp.stat(path.join(dir, f)); return { file: f, time: st.mtimeMs, size: st.size }; } catch { return null; } }));
+  return items.filter(Boolean).sort((a, b) => b.time - a.time).slice(0, 400);
+}
+const OPTION_GROUPS = {
+  controls: (k) => k.startsWith('key_') || ['mouseSensitivity', 'invertYMouse', 'toggleCrouch', 'toggleSprint', 'autoJump', 'rawMouseInput', 'discrete_mouse_scroll', 'mouseWheelSensitivity'].includes(k),
+  video: (k) => ['renderDistance', 'simulationDistance', 'fov', 'maxFps', 'graphicsMode', 'fancyGraphics', 'guiScale', 'gamma', 'enableVsync', 'fullscreen', 'entityShadows', 'particles', 'ao', 'biomeBlendRadius', 'mipmapLevels', 'renderClouds', 'bobView', 'entityDistanceScaling', 'fovEffectScale', 'screenEffectScale', 'prioritizeChunkUpdates', 'darknessEffectScale', 'glintStrength', 'glintSpeed'].includes(k),
+  sound: (k) => k.startsWith('soundCategory_') || k === 'soundDevice' || k === 'showSubtitles',
+};
+const readOptions = async (s) => { try { return await fsp.readFile(path.join(instanceDir(s), 'options.txt'), 'utf8'); } catch { return ''; } };
+async function syncOptions(from, to, groups) {
+  const want = groups.filter((g) => OPTION_GROUPS[g]);
+  if (!want.length) throw new Error('Pick at least one group of settings.');
+  if (!(await readOptions(from)).trim()) throw new Error(`${from.name} has no settings yet. Play it once first.`);
+  // Key bindings changed format in 1.13 (numbers before, key names after), so they only copy between versions on the same side.
+  const keysCompatible = (cmpVer(from.version, '1.13') < 0) === (cmpVer(to.version, '1.13') < 0);
+  const src = new Map(); for (const line of (await readOptions(from)).split(/\r?\n/)) { const i = line.indexOf(':'); if (i > 0) src.set(line.slice(0, i), line.slice(i + 1)); }
+  const pick = (k) => want.some((g) => OPTION_GROUPS[g](k)) && !(k.startsWith('key_') && !keysCompatible);
+  const lines = (await readOptions(to)).split(/\r?\n/).filter((l) => l !== ''); const seen = new Set(); let changed = 0;
+  const outLines = lines.map((l) => { const i = l.indexOf(':'); if (i <= 0) return l; const k = l.slice(0, i); seen.add(k); if (pick(k) && src.has(k) && src.get(k) !== l.slice(i + 1)) { changed++; return `${k}:${src.get(k)}`; } return l; });
+  for (const [k, v] of src) if (pick(k) && !seen.has(k)) { outLines.push(`${k}:${v}`); changed++; }
+  await ensureDir(instanceDir(to)); await fsp.writeFile(path.join(instanceDir(to), 'options.txt'), outLines.join('\n') + '\n');
+  return { changed, skippedKeys: want.includes('controls') && !keysCompatible };
+}
+
+// ---------- auto-update from GitHub Releases ----------
+const UPDATE_REPO = 'Arnxld-afk/auroria';
+let updateCache = null;
+async function checkUpdate(force) {
+  if (!force && updateCache && Date.now() - updateCache.at < 3600000) return updateCache.info;
+  const rel = await getJson(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
+  const latest = String(rel.tag_name || '').replace(/^v/, '');
+  const exe = (rel.assets || []).find((a) => /^Auroria\.exe$/i.test(a.name));
+  const info = { current: VERSION, latest, available: !!exe && cmpVer(latest, VERSION) > 0, notes: String(rel.body || '').slice(0, 2000), size: exe ? exe.size : 0, canApply: IS_SEA && IS_WIN, url: rel.html_url };
+  updateCache = { at: Date.now(), info, exe };
+  return info;
+}
+async function applyUpdate() {
+  const info = await checkUpdate(true); const exe = updateCache.exe;
+  if (!info.available || !exe) throw new Error('Auroria is already up to date.');
+  if (!info.canApply) throw new Error('Updating in place only works from Auroria.exe. Download the new version from GitHub.');
+  if (game.state !== 'idle') throw new Error('Close Minecraft before updating.');
+  const want = /^sha256:([0-9a-f]{64})$/.exec(exe.digest || '');
+  if (!want) throw new Error('The release has no checksum, so Auroria will not install it automatically. Download it from GitHub instead.');
+  setProgress('Downloading update', 0, 1);
+  let res; try { res = await fetch(exe.browser_download_url, { headers: { 'User-Agent': UA } }); } catch (e) { throw netError(exe.browser_download_url, e); }
+  if (!res.ok) throw new Error(`Update download failed (HTTP ${res.status}).`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (crypto.createHash('sha256').update(buf).digest('hex') !== want[1]) throw new Error('The update download did not match its checksum, so it was not installed.');
+  const self = process.execPath; const fresh = self + '.new'; const old = self + '.old';
+  await fsp.writeFile(fresh, buf);
+  await fsp.rm(old, { force: true }).catch(() => {});
+  await fsp.rename(self, old); // Windows lets a running exe be renamed, not overwritten
+  try { await fsp.rename(fresh, self); } catch (e) { await fsp.rename(old, self).catch(() => {}); throw new Error(`Could not put the update in place: ${e.message}`); }
+  logLine('updated to', info.latest);
+  setTimeout(() => {
+    spawn(self, [], { detached: true, stdio: 'ignore', env: { ...process.env, AURORIA_WAIT_PID: String(process.pid) } }).unref();
+    broadcast({ type: 'quit' }); setTimeout(shutdown, 400);
+  }, 300);
+  return { ok: true, version: info.latest };
+}
 
 const routes = {
   'GET /api/ping': async () => ({ ok: true }),
@@ -1470,6 +1714,9 @@ const routes = {
     const color = /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : (entry.color || '#f07f2a');
     const icon = b.icon === undefined ? (entry.icon || '') : (/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(b.icon) && b.icon.length <= 200000 ? b.icon : '');
     const ramGB = b.ramGB ? Math.min(32, Math.max(1, Number(b.ramGB) || 0)) : 0;
+    const javaPath = b.javaPath === undefined ? (entry.javaPath || '') : String(b.javaPath || '').trim();
+    if (javaPath && (!/(^|[\\/])javaw?(\.exe)?$/i.test(javaPath) || !(await exists(javaPath)))) throw new Error('That Java was not found. Pick one from the list, or leave it on Automatic.');
+    entry.javaPath = javaPath;
     if (entry.version && (entry.version !== version || entry.loader !== loader || (entry.loaderVersion || '') !== loaderVersion)) entry.changed = Date.now();
     const client = true; // Auroria Client is part of every profile
     Object.assign(entry, { client, name, address, version, loader, loaderVersion, mods, color, icon, ramGB, description: String(b.description || '').trim().slice(0, 120), tags: tag ? [tag] : [], badge: entry.badge || '', created: entry.created || Date.now() });
@@ -1512,11 +1759,48 @@ const routes = {
     if (!m) throw new Error('No file received.');
     return importMrpack(Buffer.from(m[1], 'base64'));
   },
+  'POST /api/modpacks/install': async (b) => installModpack(String(b.projectId || '')),
+  'POST /api/profile/export': async (b) => exportProfile(serverById(b.server)),
+  'GET /api/worlds': async (b, q) => listWorlds(serverById(q.get('server'))),
+  'POST /api/worlds/backup': async (b) => {
+    const s = serverById(b.server); if (profileBusy(s)) throw new Error('Close Minecraft before backing up its worlds.');
+    return { file: await backupWorld(s, b.world), worlds: await listWorlds(s) };
+  },
+  'POST /api/worlds/restore': async (b) => {
+    const s = serverById(b.server); if (profileBusy(s)) throw new Error('Close Minecraft before restoring a world.');
+    await restoreWorld(s, b.file); return { worlds: await listWorlds(s) };
+  },
+  'POST /api/worlds/delete-backup': async (b) => {
+    const s = serverById(b.server); const f = safeName(b.file);
+    if (!/__\d{4}-\d\d-\d\d-\d\d-\d\d-\d\d\.zip$/.test(f)) throw new Error('That is not an Auroria world backup.');
+    await fsp.rm(path.join(backupsDir(s), f), { force: true }); return { worlds: await listWorlds(s) };
+  },
+  'POST /api/worlds/open': async (b) => { const s = serverById(b.server); const d = b.backups ? backupsDir(s) : savesDir(s); await ensureDir(d); openExternal(d); return { ok: true }; },
+  'GET /api/shots': async (b, q) => listShots(serverById(q.get('server'))),
+  'POST /api/shots/open': async (b) => {
+    const s = serverById(b.server); const dir = path.join(instanceDir(s), 'screenshots');
+    if (b.file) { const f = path.join(dir, safeName(b.file)); if (await exists(f)) openExternal(f); } else { await ensureDir(dir); openExternal(dir); }
+    return { ok: true };
+  },
+  'POST /api/options/sync': async (b) => {
+    const from = config.servers.find((s) => s.id === b.from); const to = config.servers.find((s) => s.id === b.to);
+    if (!from || !to || from.id === to.id) throw new Error('Pick another profile to copy from.');
+    if (profileBusy(to)) throw new Error('Close Minecraft first, or it will overwrite the copied settings.');
+    return syncOptions(from, to, Array.isArray(b.groups) ? b.groups : []);
+  },
+  'POST /api/profile/servers': async (b) => {
+    const s = config.servers.find((x) => x.id === b.server); if (!s) throw new Error('That profile no longer exists.');
+    const list = (Array.isArray(b.list) ? b.list : []).slice(0, 30).map((x) => ({ name: String(x.name || '').trim().slice(0, 40), address: String(x.address || '').trim().slice(0, 80) }))
+      .filter((x) => x.address && /^[a-z0-9.\-[\]:]+$/i.test(x.address)).map((x) => ({ ...x, name: x.name || x.address }));
+    s.serverList = list; await writeJson(P.servers, config.servers); return { servers: config.servers };
+  },
+  'GET /api/update/check': async (b, q) => checkUpdate(q.get('force') === '1'),
+  'POST /api/update/apply': async () => applyUpdate(),
   'POST /api/servers/duplicate': async (b) => {
     const src = config.servers.find((s) => s.id === b.id);
     if (!src) throw new Error('That profile no longer exists.');
     let id = `${src.id}-copy`; while (config.servers.some((s) => s.id === id)) id += '-' + crypto.randomBytes(2).toString('hex');
-    const copy = { ...JSON.parse(JSON.stringify(src)), id, name: `${src.name} (copy)`.slice(0, 48), created: Date.now(), lastPlayed: 0 };
+    const copy = { ...JSON.parse(JSON.stringify(src)), id, name: `${src.name} (copy)`.slice(0, 48), created: Date.now(), lastPlayed: 0, playMs: 0, playDays: {} };
     config.servers.push(copy);
     if (await exists(instanceDir(src))) await fsp.cp(instanceDir(src), instanceDir(copy), { recursive: true });
     await writeJson(P.servers, config.servers);
@@ -1525,7 +1809,9 @@ const routes = {
   'GET /api/servers/ping': async () => Promise.all(config.servers.map(async (s) => ({ id: s.id, ...(s.address ? await pingServer(s.address) : { online: null }) }))),
   'POST /api/launch': async (b) => {
     if (game.state !== 'idle') throw new Error('The game is already starting or running.');
-    launch(b.serverId || settings.selectedServer).catch((e) => logLine('launch rejected', e.message)); // launch reports its own failures; never let one take the process down
+    const join = String(b.join || '').trim();
+    if (join && !/^[a-z0-9.\-[\]:]+$/i.test(join)) throw new Error('That server address is not valid.');
+    launch(b.serverId || settings.selectedServer, join).catch((e) => logLine('launch rejected', e.message)); // launch reports its own failures; never let one take the process down
     return { ok: true };
   },
   'POST /api/stop': async () => { if (game.proc) { game.userStopped = true; game.proc.kill(); } return { ok: true }; },
@@ -1547,8 +1833,9 @@ const routes = {
   'GET /api/mods/updates': async (b, q) => modUpdates(serverById(q.get('server'))),
   'GET /api/mods/search': async (b, q) => {
     const s = serverById(q.get('server'));
-    const type = PACK_TYPES[q.get('type')] ? q.get('type') : 'mod';
-    const facets = [[`versions:${s.version}`], [`project_type:${type}`]];
+    const type = q.get('type') === 'modpack' ? 'modpack' : PACK_TYPES[q.get('type')] ? q.get('type') : 'mod';
+    // Modpacks bring their own version and loader and become a new profile, so they are not filtered by this one.
+    const facets = type === 'modpack' ? [['project_type:modpack']] : [[`versions:${s.version}`], [`project_type:${type}`]];
     if (type === 'mod') facets.push(modLoaders(s).map((l) => `categories:${l}`));
     const index = ['relevance', 'downloads', 'newest', 'updated', 'follows'].includes(q.get('sort')) ? q.get('sort') : 'relevance';
     const offset = Math.max(0, Number(q.get('offset')) || 0);
@@ -1561,9 +1848,19 @@ const routes = {
     };
   },
   'POST /api/mods/install': async (b) => {
-    const s = serverById(b.server);
-    await installModProject(s, b.projectId, new Set(), PACK_TYPES[b.type] ? b.type : 'mod');
-    return listMods(s);
+    const s = serverById(b.server); const type = PACK_TYPES[b.type] ? b.type : 'mod';
+    const have = type === 'mod' ? new Set((await listMods(s)).map((m) => m.projectId).filter(Boolean)) : new Set();
+    const visited = new Set();
+    await installModProject(s, b.projectId, visited, type, have);
+    const mods = await listMods(s);
+    if (b.withDeps) return { mods, deps: Math.max(0, visited.size - 1) };
+    return mods;
+  },
+  'GET /api/mods/dependents': async (b, q) => modDependents(serverById(q.get('server')), path.basename(q.get('file') || '')),
+  'GET /api/java': async (b, q) => {
+    const s = serverById(q.get('server'));
+    const [list, base] = await Promise.all([detectJavas(), loadVanilla(s.version).catch(() => null)]);
+    return { list, required: base && base.javaVersion ? base.javaVersion.majorVersion : (cmpVer(s.version, '1.17') < 0 ? 8 : 17), current: s.javaPath || '' };
   },
   'POST /api/mods/toggle': async (b) => {
     const s = serverById(b.server); const dir = modsDir(s); const f = path.basename(b.file);
@@ -1583,7 +1880,7 @@ const routes = {
     const png = Buffer.from(String(b.data || '').replace(/^data:image\/png;base64,/, ''), 'base64');
     if (png.slice(1, 4).toString() !== 'PNG') throw new Error('Skins must be PNG files.');
     const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
-    if (w !== 64 || (h !== 64 && h !== 32)) throw new Error('Skins must be 64×64 or 64×32 pixels.');
+    if (w !== 64 || (h !== 64 && h !== 32)) throw new Error('Skins must be 64Ã—64 or 64Ã—32 pixels.');
     const id = crypto.randomBytes(6).toString('hex');
     await ensureDir(P.skins); await fsp.writeFile(path.join(P.skins, `${id}.png`), png);
     const lib = await skinLibrary(); lib.push({ id, name: String(b.name || 'Skin').slice(0, 40), variant: b.variant === 'SLIM' ? 'SLIM' : 'CLASSIC' });
@@ -1646,6 +1943,13 @@ async function handle(req, res) {
       }
       return send(res, 200, await fsp.readFile(path.join(P.skins, `${path.basename(id)}.png`)), 'image/png');
     } catch { return send(res, 404, { error: 'No skin' }); }
+  }
+  if (url.pathname === '/api/profile-image') {
+    try {
+      const s = serverById(url.searchParams.get('server')); const name = safeName(url.searchParams.get('name'));
+      const file = url.searchParams.get('kind') === 'world' ? path.join(savesDir(s), name, 'icon.png') : path.join(instanceDir(s), 'screenshots', name);
+      return send(res, 200, await fsp.readFile(file), /\.jpe?g$/i.test(file) ? 'image/jpeg' : 'image/png');
+    } catch { return send(res, 404, { error: 'No image' }); }
   }
   const fn = routes[`${req.method} ${url.pathname}`];
   if (!fn) return send(res, 404, { error: 'Unknown endpoint' });
@@ -1982,6 +2286,10 @@ function openEdgeWindow(url) {
 
 async function main() {
   await ensureDir(DATA);
+  // After a self-update the old process hands over: wait for it to exit, then drop the exe it left behind.
+  const waitPid = Number(process.env.AURORIA_WAIT_PID) || 0;
+  if (waitPid) { delete process.env.AURORIA_WAIT_PID; for (let i = 0; i < 50; i++) { try { process.kill(waitPid, 0); } catch { break; } await sleep(200); } }
+  if (IS_SEA) fsp.rm(process.execPath + '.old', { force: true }).catch(() => {});
   // Single instance: if another launcher is running, just show its window.
   const lock = await readJson(P.lock, null);
   if (lock && lock.port && lock.token) {

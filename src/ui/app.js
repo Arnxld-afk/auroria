@@ -334,15 +334,19 @@ function pageServers() {
       <div class="p-body">
         <div class="p-head"><span class="p-icon big" style="${iconStyle(s.color, s.icon)}">${s.icon ? '' : esc(initials(s.name))}</span>
           <div class="p-title"><h3 title="${esc(s.name)}">${esc(s.name)}</h3><div class="p-ver"><span class="pill">${esc(s.version)}</span>${s.loaderVersion ? `<span class="pill dim">${esc(s.loaderVersion)}</span>` : ''}</div></div></div>
-        <div class="p-meta">${srv}<span class="sub p-ago">${CLOCK}${ago(s.lastPlayed)}</span></div>
+        <div class="p-meta">${srv}<span class="sub p-ago">${CLOCK}${ago(s.lastPlayed)}</span><span class="sub p-time tnum">${s.playMs ? `${fmtDur(s.playMs)} played` : 'No playtime yet'}${playBars(s)}</span></div>
         <div class="p-actions">
           <button class="btn primary small" data-action="play-profile" data-id="${esc(s.id)}" ${S.state.game.state !== 'idle' ? 'disabled' : ''}>${ICON.play.replace('<svg', '<svg style="width:11px;height:12px;fill:currentColor;stroke:none"')}Play</button>
           ${isSel ? '' : `<button class="btn soft small" data-action="select-server" data-id="${esc(s.id)}">Select</button>`}
           <span style="flex:1"></span>
+          ${act('manage', s.id, 'Worlds, screenshots and servers', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>')}
           ${act('edit-server', s.id, 'Edit', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>')}
-          ${act('dup-server', s.id, 'Duplicate', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>')}
-          ${act('open-profile', s.id, 'Open folder', ICON.folder)}
-          ${act('delete-server', s.id, 'Delete', ICON.trash, 'danger')}
+          ${act('p-more', s.id, 'More', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>', S.pMenu === s.id ? 'on' : '')}
+          ${S.pMenu === s.id ? `<div class="menu p-menu" role="menu">
+            <button role="menuitem" data-action="share-profile" data-id="${esc(s.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg>Share as .mrpack</button>
+            <button role="menuitem" data-action="dup-server" data-id="${esc(s.id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>Duplicate</button>
+            <button role="menuitem" data-action="open-profile" data-id="${esc(s.id)}">${ICON.folder}Open folder</button>
+            <button role="menuitem" class="danger" data-action="delete-server" data-id="${esc(s.id)}">${ICON.trash}Delete</button></div>` : ''}
         </div>
       </div></article>`;
   }).join('');
@@ -368,7 +372,8 @@ function modRow(m) {
 }
 function browseRow(h) {
   const busy = S.busy[h.projectId];
-  const btn = h.installed ? '<span class="ok-tag">✓ Installed</span>'
+  const btn = h.type === 'modpack' ? `<button class="btn soft small" data-action="pack-install" data-id="${esc(h.projectId)}" data-title="${esc(h.title)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install pack'}</button>`
+    : h.installed ? '<span class="ok-tag">✓ Installed</span>'
     : `<button class="btn soft small" data-action="mod-install" data-id="${esc(h.projectId)}" data-type="${esc(h.type)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install'}</button>`;
   return `<div class="mod browse"><div class="mod-name"><span class="icon big">${h.icon ? `<img src="${esc(h.icon)}" alt="" loading="lazy">` : esc(h.title[0])}</span>
     <div><b>${esc(h.title)}</b><small>by ${esc(h.author)} · <span class="tnum">${compact(h.downloads)}</span> downloads</small>
@@ -377,16 +382,17 @@ function browseRow(h) {
 }
 function pageMods() {
   const s = selected(); const vanilla = s.loader === 'vanilla';
-  if (vanilla) { S.modTab = 'browse'; S.browseType = 'resourcepack'; }
+  if (vanilla) { S.modTab = 'browse'; if (S.browseType !== 'modpack') S.browseType = 'resourcepack'; }
   const head = `<header class="page-head"><h1>${vanilla ? 'Resource packs' : 'Mods'}</h1><p>${esc(s.name)} · ${esc(s.version)} ${loaderLabel(s)}${!vanilla && S.mods ? ` · ${shownMods().length} installed` : ''}${vanilla ? ' · vanilla profiles take resource packs only' : ''}</p></header>`;
   const updCount = S.updates ? S.updates.length : 0;
   let body;
   if (S.modTab === 'browse') {
-    const types = vanilla ? [['resourcepack', 'Resource packs']] : [['mod', 'Mods'], ['resourcepack', 'Resource packs'], ['shader', 'Shaders']];
+    const types = vanilla ? [['resourcepack', 'Resource packs'], ['modpack', 'Modpacks']] : [['mod', 'Mods'], ['resourcepack', 'Resource packs'], ['shader', 'Shaders'], ['modpack', 'Modpacks']];
     const skel = Array.from({ length: 6 }, () => '<div class="mod browse"><div class="mod-name"><span class="icon big sk"></span><div><b class="sk" style="width:180px">&nbsp;</b><small class="sk" style="width:140px;margin-top:6px">&nbsp;</small><p class="desc sk" style="width:80%">&nbsp;</p></div></div><span></span></div>').join('');
     const rows = S.browse == null ? skel
       : S.browse.error ? `<div class="empty"><strong>Modrinth is not reachable</strong>${esc(S.browse.error)}</div>`
       : S.browse.length ? S.browse.map(browseRow).join('') + browseMoreHtml()
+      : S.browseType === 'modpack' ? '<div class="empty"><strong>Nothing found</strong>No modpacks match that search.</div>'
       : `<div class="empty"><strong>Nothing found</strong>No ${S.browseType === 'mod' ? 'mods' : S.browseType === 'shader' ? 'shaders' : 'resource packs'} match for Minecraft ${esc(s.version)}.</div>`;
     body = `<div class="card list"><div class="browse-bar">
       <div class="seg" role="radiogroup" aria-label="Project type">${types.map(([k, l]) => `<button role="radio" aria-checked="${S.browseType === k}" data-action="browse-type" data-v="${k}">${l}</button>`).join('')}</div>
@@ -491,9 +497,9 @@ function pageSettings() {
 }
 
 /* ---------------- launch check and crash popups ---------------- */
-async function startLaunch(id) {
+async function startLaunch(id, join) {
   S.launchError = ''; S.state.game.state = 'preparing'; S.state.game.progress = { stage: 'Getting ready', done: 0, total: 1 }; render();
-  try { await api('POST', '/api/launch', { serverId: id }); } catch (e) { S.launchError = e.message; S.state.game.state = 'idle'; render(); }
+  try { await api('POST', '/api/launch', { serverId: id, join: join || '' }); } catch (e) { S.launchError = e.message; S.state.game.state = 'idle'; render(); }
 }
 // One row per problem, with a Delete button for each mod involved (two copies show both, so you pick which one goes).
 function chkRows(problems) {
@@ -515,11 +521,121 @@ function crashModal(ev) {
     ${c && c.lines.length ? `<div class="chk-block err"><ul>${c.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>` : ''}
     <div id="crash-fix"></div>
     <p class="sub" style="margin:12px 0 0">${esc(c ? c.hint : ev.error || '')}</p>
-    <div class="modal-actions"><button class="btn" data-action="close">Close</button>${c && c.kind === 'mods' || c && c.kind === 'mixin' ? '<button class="btn" data-action="go-mods">Open mods</button>' : ''}<button class="btn primary" data-action="go-logs">View logs</button></div>`, true);
+    <div class="modal-actions"><button class="btn" data-action="close">Close</button>${c && c.kind === 'mods' || c && c.kind === 'mixin' ? '<button class="btn" data-action="go-mods">Open mods</button>' : ''}${S.logs.length ? '<button class="btn" data-action="log-upload" title="Upload the game log to mclo.gs and copy the link">Upload log</button>' : ''}<button class="btn primary" data-action="go-logs">View logs</button></div>`, true);
   if (c && (c.kind === 'mods' || c.kind === 'mixin')) {
     const sid = (S.state.game && S.state.game.serverId) || selected().id; S.launchChk = { id: sid, outdated: [], name: '' };
     api('GET', `/api/launch-check?server=${encodeURIComponent(sid)}`).then((chk) => { const el = $('#crash-fix'); if (el && chk.problems.length) el.innerHTML = `<div class="chk-block err"><b>Found in your mods</b><ul>${chkRows(chk.problems)}</ul></div>`; }).catch(() => {});
   }
+}
+
+/* ---------------- profile extras: playtime, manage window (worlds, screenshots, servers, settings sync) ---------------- */
+const fmtBytes = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e8 ? 0 : 1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
+function fmtDur(ms) { const m = Math.round((ms || 0) / 60000); if (m < 60) return `${m}m`; const h = Math.floor(m / 60); return h < 100 ? `${h}h ${m % 60}m` : `${h}h`; }
+function playBars(s) {
+  const days = s.playDays || {}; const vals = [];
+  for (let i = 6; i >= 0; i--) vals.push(days[new Date(Date.now() - i * 864e5).toISOString().slice(0, 10)] || 0);
+  const max = Math.max(...vals, 1);
+  return `<span class="p-bars" title="Last 7 days">${vals.map((v) => `<i class="${v ? 'on' : ''}" style="height:${v ? Math.max(3, Math.round((v / max) * 14)) : 2}px"></i>`).join('')}</span>`;
+}
+const profileImg = (sid, kind, name) => `/api/profile-image?server=${encodeURIComponent(sid)}&kind=${kind}&name=${encodeURIComponent(name)}&token=${TOKEN}`;
+const MG = { id: '', tab: 'worlds', worlds: null, shots: null, pings: {}, confirm: '' };
+const mgServer = () => servers().find((x) => x.id === MG.id);
+function manageModal(id, tab) {
+  Object.assign(MG, { id, tab: tab || 'worlds', worlds: null, shots: null, confirm: '' });
+  const s = mgServer(); if (!s) return;
+  const tabs = [['worlds', 'Worlds'], ['shots', 'Screenshots'], ['servers', 'Servers'], ['options', 'Settings sync']];
+  modal(`<div class="mg-head"><span class="p-icon" style="${iconStyle(s.color, s.icon)}">${s.icon ? '' : esc(initials(s.name))}</span>
+      <div><h2>${esc(s.name)}</h2><p class="sub">${esc(s.version)} ${loaderLabel(s)} · ${s.playMs ? `${fmtDur(s.playMs)} played` : 'Not played yet'}</p></div></div>
+    <div class="tabs mg-tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab ${MG.tab === k ? 'active' : ''}" role="tab" aria-selected="${MG.tab === k}" data-action="mg-tab" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="mg-body" id="mg-body"></div>
+    <div class="modal-actions"><button class="btn" data-action="close">Close</button></div>`, true);
+  mgDraw(); mgLoad();
+}
+function mgDraw() { const b = $('#mg-body'); const s = mgServer(); if (b && s) b.innerHTML = mgBody(s); }
+async function mgLoad() {
+  const s = mgServer(); if (!s) return;
+  if (MG.tab === 'worlds') { try { MG.worlds = await api('GET', `/api/worlds?server=${encodeURIComponent(s.id)}`); } catch (e) { MG.worlds = []; toast(e.message, true); } }
+  if (MG.tab === 'shots') { try { MG.shots = await api('GET', `/api/shots?server=${encodeURIComponent(s.id)}`); } catch (e) { MG.shots = []; toast(e.message, true); } }
+  if (MG.tab === 'servers') for (const x of s.serverList || []) mgPing(x.address);
+  mgDraw();
+}
+async function mgPing(address) {
+  MG.pings[address] = null; mgDraw();
+  try { MG.pings[address] = await api('GET', `/api/servers/ping-one?address=${encodeURIComponent(address)}`); } catch { MG.pings[address] = { online: false }; }
+  mgDraw();
+}
+const SPIN = (t) => `<div class="sub mg-empty"><span class="spinner"></span>${t}</div>`;
+function mgBody(s) {
+  if (MG.tab === 'worlds') {
+    if (!MG.worlds) return SPIN('Reading worlds…');
+    const rows = MG.worlds.map((w) => `<div class="mg-world"><div class="mg-row"><span class="mg-ico">${w.icon ? `<img src="${profileImg(s.id, 'world', w.name)}" alt="">` : ''}</span>
+        <div class="mg-info"><b>${esc(w.name)}</b><small>${fmtBytes(w.size)} · ${esc(ago(w.modified).replace('Played', 'Changed'))} · ${w.backups.length} backup${w.backups.length === 1 ? '' : 's'}</small></div>
+        <button class="btn small" data-action="mg-backup" data-world="${esc(w.name)}">Back up</button></div>
+      ${w.backups.length ? `<div class="mg-backups">${w.backups.map((b) => `<div class="mg-brow"><span class="tnum">${esc(new Date(b.time).toLocaleString())} · ${fmtBytes(b.size)}</span>
+        <button class="btn small ${MG.confirm === `r:${b.file}` ? 'primary' : ''}" data-action="mg-restore" data-file="${esc(b.file)}">${MG.confirm === `r:${b.file}` ? 'Confirm restore' : 'Restore'}</button>
+        <button class="btn small ${MG.confirm === `d:${b.file}` ? 'danger' : ''}" data-action="mg-delbk" data-file="${esc(b.file)}">${MG.confirm === `d:${b.file}` ? 'Confirm delete' : 'Delete'}</button></div>`).join('')}</div>` : ''}</div>`).join('');
+    return `${rows || '<div class="sub mg-empty">No worlds yet. Play this profile and create one.</div>'}
+      <p class="sub mg-note">Restoring replaces the world with the backup. Auroria backs up the current world first, so nothing is lost.</p>
+      <div class="inline mg-foot"><button class="btn small" data-action="mg-open" data-v="saves">${ICON.folder}Open saves folder</button><button class="btn small" data-action="mg-open" data-v="backups">${ICON.folder}Open backups folder</button></div>`;
+  }
+  if (MG.tab === 'shots') {
+    if (!MG.shots) return SPIN('Finding screenshots…');
+    return `${MG.shots.length ? `<div class="mg-shots">${MG.shots.map((x) => `<button class="mg-shot" data-action="mg-shot" data-file="${esc(x.file)}" title="${esc(x.file)}"><img src="${profileImg(s.id, 'shot', x.file)}" alt="" loading="lazy"><span>${esc(new Date(x.time).toLocaleDateString())}</span></button>`).join('')}</div>`
+      : '<div class="sub mg-empty">No screenshots yet. Press F2 in game to take one.</div>'}
+      <div class="inline mg-foot"><button class="btn small" data-action="mg-shot">${ICON.folder}Open screenshots folder</button></div>`;
+  }
+  if (MG.tab === 'servers') {
+    const idle = S.state.game.state === 'idle';
+    const rows = (s.serverList || []).map((x, i) => {
+      const p = MG.pings[x.address];
+      const st = p === undefined || p === null ? '<span class="spinner"></span>Checking…' : !p.online ? '<span style="color:var(--err)">Offline</span>'
+        : `<span class="dot-on"></span>${fmt(p.players)}/${fmt(p.max)} online · ${p.latency} ms${p.motd ? ` · ${esc(p.motd)}` : ''}`;
+      return `<div class="mg-row"><div class="mg-info"><b>${esc(x.name)}</b><small class="mg-srv">${esc(x.address)} · ${st}</small></div>
+        <button class="btn primary small" data-action="mg-join" data-addr="${esc(x.address)}" ${idle ? '' : 'disabled'}>Join</button>
+        <button class="iconbtn danger" data-action="mg-del-server" data-i="${i}" aria-label="Remove ${esc(x.name)}" title="Remove">${ICON.trash}</button></div>`;
+    }).join('');
+    return `${rows || '<div class="sub mg-empty">No servers saved for this profile yet.</div>'}
+      <div class="mg-add"><input class="input" id="mg-sname" maxlength="40" placeholder="Name"><input class="input" id="mg-saddr" placeholder="play.example.net"><button class="btn" data-action="mg-add-server">${ICON.plus}Add</button></div>
+      <p class="sub mg-note">Join starts this profile and drops you straight into that server.</p>`;
+  }
+  const others = servers().filter((x) => x.id !== s.id);
+  if (!others.length) return '<div class="sub mg-empty">Make a second profile to copy settings between them.</div>';
+  return `<p class="sub" style="margin:4px 0 14px">Copy your Minecraft settings from another profile into ${esc(s.name)}.</p>
+    <div class="form-grid"><label for="mg-from">Copy from</label><select class="input" id="mg-from">${others.map((x) => `<option value="${esc(x.id)}">${esc(x.name)} · ${esc(x.version)}</option>`).join('')}</select>
+    <span>What</span><div class="mg-checks">${[['controls', 'Controls and key binds'], ['video', 'Video settings'], ['sound', 'Sound volumes']].map(([k, l]) => `<label><input type="checkbox" class="mg-grp" value="${k}" checked> ${l}</label>`).join('')}</div></div>
+    <div class="inline mg-foot"><button class="btn primary" data-action="mg-sync">Copy settings</button><span class="sub" id="mg-sync-out"></span></div>`;
+}
+let depResolve = null;
+// Asks before removing or turning off a mod that other installed mods list as required.
+async function confirmDependents(file, verb) {
+  let names = [];
+  try { names = await api('GET', `/api/mods/dependents?server=${encodeURIComponent(selected().id)}&file=${encodeURIComponent(file)}`); } catch {}
+  if (!names.length) return true;
+  const list = names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.join(', ');
+  return new Promise((resolve) => {
+    depResolve = resolve;
+    modal(`<h2>Other mods need this one</h2><p>${esc(list)} ${names.length > 1 ? 'require' : 'requires'} it. ${verb === 'Remove' ? 'Removing' : 'Turning off'} it will probably stop the game from starting.</p>
+      <div class="modal-actions"><button class="btn" data-action="dep-answer" data-v="0">Keep it</button><button class="btn danger" data-action="dep-answer" data-v="1">${verb} anyway</button></div>`);
+  });
+}
+const javaFor = (v) => (cmpVer(v, '1.17') < 0 ? 8 : cmpVer(v, '1.18') < 0 ? 16 : cmpVer(v, '1.20.5') < 0 ? 17 : 21);
+function pmJavaHint() {
+  const sel = $('#pm-java'); const hint = $('#pm-java-hint'); if (!sel || !hint) return;
+  const v = ($('#srv-version') || {}).value || '';
+  const need = javaFor(/^\d/.test(v) ? v : PM.version || '1.20.1');
+  const opt = sel.selectedOptions[0]; const major = Number(opt && opt.dataset.major) || 0;
+  hint.innerHTML = !sel.value ? `Auroria downloads and uses Java ${need} for this version.`
+    : major && major !== need ? `<span style="color:var(--warn)">This version expects Java ${need}. Java ${major} may not start it.</span>` : `Uses ${esc(sel.value)}`;
+}
+async function pmJavaLoad(s) {
+  try {
+    const r = await api('GET', `/api/java?server=${encodeURIComponent((s && s.id) || selected().id)}`);
+    const sel = $('#pm-java'); if (!sel) return;
+    const cur = (s && s.javaPath) || '';
+    sel.innerHTML = '<option value="">Automatic</option>' + r.list.map((j) => `<option value="${esc(j.path)}" data-major="${j.major}" ${j.path === cur ? 'selected' : ''} title="${esc(j.path)}">Java ${j.major || '?'} (${esc(j.version)}) · ${esc(j.source)}</option>`).join('')
+      + (cur && !r.list.some((j) => j.path === cur) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : '');
+    pmJavaHint();
+  } catch {}
 }
 
 /* ---------------- game logs ---------------- */
@@ -770,13 +886,15 @@ async function serverModal(s) {
         <div class="hint" id="srv-check-out" style="display:flex;gap:8px;align-items:center"></div></div>
       <label for="pm-ram">Memory</label>
       <select class="input" id="pm-ram" style="width:200px"><option value="0">Default (${S.state.settings.ramGB} GB)</option>${[2, 3, 4, 6, 8, 10, 12, 16].map((g) => `<option value="${g}" ${Number(s.ramGB) === g ? 'selected' : ''}>${g} GB</option>`).join('')}</select>
+      <label for="pm-java">Java</label>
+      <div><select class="input" id="pm-java" style="width:100%"><option value="">Automatic</option>${s.javaPath ? `<option value="${esc(s.javaPath)}" selected>${esc(s.javaPath)}</option>` : ''}</select><div class="hint" id="pm-java-hint"></div></div>
       <label for="srv-mods" id="pm-mods-label">Auto-install mods</label>
       <div id="srv-mods-field"><input class="input" id="srv-mods" style="width:100%" placeholder="Modrinth names: fabric-api, sodium" title="Installed the first time you press Play" value="${esc((s.mods || []).join(', '))}"></div>
     </div></details>
     <p id="srv-error" style="color:var(--err);margin:12px 0 0" hidden></p>
     <div class="modal-actions">${editing ? `<button class="btn" style="margin-right:auto" data-action="delete-server" data-id="${esc(s.id)}">${ICON.trash}Delete</button>` : ''}<button class="btn" data-action="close">Cancel</button><button class="btn primary" data-action="srv-save">${editing ? 'Save changes' : 'Create profile'}</button></div>`);
   $('#srv-name').addEventListener('input', (e) => { if (!PM.icon) $('#pm-icon').textContent = initials(e.target.value || 'New'); });
-  pmLoaderUi();
+  pmLoaderUi(); pmJavaHint(); pmJavaLoad(editing ? s : null);
   try {
     if (!S.versions) S.versions = await api('GET', '/api/versions');
     if (!PM.version) PM.version = S.versions.latest.release;
@@ -910,17 +1028,108 @@ const actions = {
   'select-server': async (el) => { await saveSettings({ selectedServer: el.dataset.id }); S.mods = null; S.modsServer = null; render(); toast(`Switched to ${selected().name}`); },
   'play-here': () => { go('home'); if (S.state.profile && S.state.game.state === 'idle') actions.launch(); },
   'mod-tab': (el) => { S.modTab = el.dataset.tab; S.modQuery = ''; render(); if (S.modTab === 'browse') searchMods(); },
-  'mod-toggle': async (el) => { try { S.mods = await api('POST', '/api/mods/toggle', { server: selected().id, file: el.dataset.file }); render(); } catch (e) { toast(e.message, true); } },
-  'mod-delete': async (el) => { try { S.mods = await api('POST', '/api/mods/delete', { server: selected().id, file: el.dataset.file }); render(); toast('Mod removed'); } catch (e) { toast(e.message, true); } },
+  'mod-toggle': async (el) => {
+    const file = el.dataset.file;
+    if (el.getAttribute('aria-checked') === 'true' && !(await confirmDependents(file, 'Turn off'))) return;
+    try { S.mods = await api('POST', '/api/mods/toggle', { server: selected().id, file }); render(); } catch (e) { toast(e.message, true); }
+  },
+  'mod-delete': async (el) => {
+    const file = el.dataset.file;
+    if (!(await confirmDependents(file, 'Remove'))) return;
+    try { S.mods = await api('POST', '/api/mods/delete', { server: selected().id, file }); render(); toast('Mod removed'); } catch (e) { toast(e.message, true); }
+  },
+  'dep-answer': (el) => { closeModal(); const r = depResolve; depResolve = null; if (r) r(el.dataset.v === '1'); },
   'mod-install': async (el) => {
     const id = el.dataset.id; const type = el.dataset.type || 'mod'; S.busy[id] = true; render();
     try {
-      S.mods = await api('POST', '/api/mods/install', { server: selected().id, projectId: id, type });
+      const r = await api('POST', '/api/mods/install', { server: selected().id, projectId: id, type, withDeps: true });
+      S.mods = r.mods;
       if (Array.isArray(S.browse)) S.browse = S.browse.map((h) => (h.projectId === id ? { ...h, installed: true } : h));
-      toast(type === 'mod' ? 'Mod installed' : type === 'shader' ? 'Shader installed. Pick it in game under Video Settings.' : 'Resource pack installed. Turn it on in game under Resource Packs.');
+      toast(type === 'mod' ? (r.deps ? `Mod installed, plus ${r.deps} mod${r.deps > 1 ? 's' : ''} it needs` : 'Mod installed') : type === 'shader' ? 'Shader installed. Pick it in game under Video Settings.' : 'Resource pack installed. Turn it on in game under Resource Packs.');
     } catch (e) { toast(e.message, true); }
     delete S.busy[id]; render();
   },
+  'pack-install': async (el) => {
+    const id = el.dataset.id; S.busy[id] = true; render();
+    toast('Downloading the modpack. Big packs take a few minutes.');
+    try { await importDone(await api('POST', '/api/modpacks/install', { projectId: id }), el.dataset.title || 'Modpack'); }
+    catch (e) { toast(e.message, true); }
+    delete S.busy[id]; render();
+  },
+  manage: (el) => manageModal(el.dataset.id),
+  'p-more': (el) => { S.pMenu = S.pMenu === el.dataset.id ? '' : el.dataset.id; render(); },
+  'share-profile': async (el) => {
+    const s = servers().find((x) => x.id === el.dataset.id); el.disabled = true;
+    toast(`Packing ${s ? s.name : 'the profile'}…`);
+    try {
+      const r = await api('POST', '/api/profile/export', { server: el.dataset.id });
+      toast(`Saved ${r.file.split(/[\\/]/).pop()} to Downloads. Friends can import it in Auroria, the Modrinth App or Prism.`);
+    } catch (e) { toast(e.message, true); }
+    el.disabled = false;
+  },
+  'mg-tab': (el) => {
+    MG.tab = el.dataset.v; MG.confirm = '';
+    document.querySelectorAll('[data-action="mg-tab"]').forEach((b) => { b.classList.toggle('active', b === el); b.setAttribute('aria-selected', String(b === el)); });
+    mgDraw(); mgLoad();
+  },
+  'mg-backup': async (el) => {
+    el.disabled = true; el.innerHTML = '<span class="spinner"></span>Backing up…';
+    try { const r = await api('POST', '/api/worlds/backup', { server: MG.id, world: el.dataset.world }); MG.worlds = r.worlds; toast('World backed up'); }
+    catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'mg-restore': async (el) => {
+    const f = el.dataset.file;
+    if (MG.confirm !== `r:${f}`) { MG.confirm = `r:${f}`; mgDraw(); return; }
+    MG.confirm = ''; el.disabled = true; el.innerHTML = '<span class="spinner"></span>Restoring…';
+    try { const r = await api('POST', '/api/worlds/restore', { server: MG.id, file: f }); MG.worlds = r.worlds; toast('World restored. The previous version was backed up first.'); }
+    catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'mg-delbk': async (el) => {
+    const f = el.dataset.file;
+    if (MG.confirm !== `d:${f}`) { MG.confirm = `d:${f}`; mgDraw(); return; }
+    MG.confirm = '';
+    try { const r = await api('POST', '/api/worlds/delete-backup', { server: MG.id, file: f }); MG.worlds = r.worlds; toast('Backup deleted'); }
+    catch (e) { toast(e.message, true); }
+    mgDraw();
+  },
+  'mg-open': (el) => api('POST', '/api/worlds/open', { server: MG.id, backups: el.dataset.v === 'backups' }).catch((e) => toast(e.message, true)),
+  'mg-shot': (el) => api('POST', '/api/shots/open', { server: MG.id, file: el.dataset.file || '' }).catch((e) => toast(e.message, true)),
+  'mg-add-server': async () => {
+    const s = mgServer(); const name = $('#mg-sname').value.trim(); const address = $('#mg-saddr').value.trim();
+    if (!address) { toast('Enter the server address', true); return; }
+    try { const r = await api('POST', '/api/profile/servers', { server: s.id, list: [...(s.serverList || []), { name, address }] }); S.state.config.servers = r.servers; mgDraw(); mgPing(address); }
+    catch (e) { toast(e.message, true); }
+  },
+  'mg-del-server': async (el) => {
+    const s = mgServer(); const list = (s.serverList || []).filter((_, i) => i !== Number(el.dataset.i));
+    try { const r = await api('POST', '/api/profile/servers', { server: s.id, list }); S.state.config.servers = r.servers; mgDraw(); }
+    catch (e) { toast(e.message, true); }
+  },
+  'mg-join': async (el) => {
+    const id = MG.id; const addr = el.dataset.addr;
+    if (!S.state.profile) { signIn(); return; }
+    if (id !== S.state.settings.selectedServer) { await saveSettings({ selectedServer: id }); S.mods = null; S.modsServer = null; }
+    closeModal(); go('home'); startLaunch(id, addr);
+  },
+  'mg-sync': async (el) => {
+    const groups = [...document.querySelectorAll('.mg-grp:checked')].map((c) => c.value); const out = $('#mg-sync-out');
+    el.disabled = true;
+    try {
+      const r = await api('POST', '/api/options/sync', { from: $('#mg-from').value, to: MG.id, groups });
+      out.textContent = `${r.changed} setting${r.changed === 1 ? '' : 's'} copied.${r.skippedKeys ? ' Key binds were skipped: they use a different format before and after Minecraft 1.13.' : ''}`;
+    } catch (e) { out.textContent = ''; toast(e.message, true); }
+    el.disabled = false;
+  },
+  'update-now': async (el) => {
+    const u = S.update; if (!u) return;
+    if (!u.canApply) { api('POST', '/api/open', { what: 'url', url: u.url }).catch(() => {}); return; }
+    el.disabled = true; el.innerHTML = '<span class="spinner"></span>Downloading…';
+    try { await api('POST', '/api/update/apply'); $('#update-bar').innerHTML = `<span><b>Installing Auroria ${esc(u.latest)}</b> Restarting…</span>`; }
+    catch (e) { toast(e.message, true); el.disabled = false; el.textContent = 'Update now'; }
+  },
+  'update-later': () => { $('#update-bar').hidden = true; },
   'browse-type': (el) => { S.browseType = el.dataset.v; searchMods(); },
   'browse-more': () => searchMods(true),
   'find-iris': () => { S.browseType = 'mod'; S.modQuery = 'iris'; searchMods(); },
@@ -968,7 +1177,7 @@ const actions = {
   },
   'srv-save': async () => {
     const body = { id: PM.id || undefined, name: $('#srv-name').value, address: $('#srv-address').value, version: ($('#srv-version') || {}).value || PM.version,
-      client: true, loader: PM.loader, loaderVersion: PM.loader === 'vanilla' ? '' : ($('#pm-loader-version') || {}).value || '', mods: $('#srv-mods').value, color: PM.color, icon: PM.icon, ramGB: Number($('#pm-ram').value) || 0 };
+      client: true, loader: PM.loader, loaderVersion: PM.loader === 'vanilla' ? '' : ($('#pm-loader-version') || {}).value || '', mods: $('#srv-mods').value, color: PM.color, icon: PM.icon, ramGB: Number($('#pm-ram').value) || 0, javaPath: ($('#pm-java') || {}).value || '' };
     try {
       const r = await api('POST', '/api/servers/save', body); S.state.config.servers = r.servers;
       if (!body.id) await saveSettings({ selectedServer: r.id });
@@ -1007,6 +1216,7 @@ const actions = {
 };
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
+  if (S.pMenu && (!el || el.dataset.action !== 'p-more')) { S.pMenu = ''; const m = $('.p-menu'); if (m) m.remove(); document.querySelectorAll('[data-action="p-more"].on').forEach((b) => b.classList.remove('on')); }
   if (!el) { if (S.menuOpen && !e.target.closest('.account')) { S.menuOpen = false; renderAccount(); paintSkins(); } return; }
   if (el.disabled) return;
   const fn = actions[el.dataset.action]; if (fn) { e.preventDefault(); fn(el); }
@@ -1022,6 +1232,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', async (e) => {
   const t = e.target;
+  if (t.id === 'pm-java' || t.id === 'srv-version') pmJavaHint();
   if (t.id === 'browse-sort') { S.browseSort = t.value; searchMods(); }
   else if (t.id === 'profile-sort') { S.profileSort = t.value; render(); }
   else if (t.id === 'mods-ram' || t.id === 'set-ram') await saveSettings({ ramGB: Number(t.value) });
@@ -1241,4 +1452,13 @@ async function revealWhenLoaded() {
   setInterval(() => { if (S.page === 'home' || S.page === 'servers') loadPings(); }, 30000);
   setInterval(checkModsFolder, 1500);
   window.addEventListener('focus', checkModsFolder);
+  setTimeout(checkForUpdate, 2500);
 })();
+async function checkForUpdate() {
+  try {
+    const u = await api('GET', '/api/update/check'); if (!u.available) return;
+    S.update = u; const bar = $('#update-bar');
+    bar.innerHTML = `<span><b>Auroria ${esc(u.latest)} is out</b>You have ${esc(u.current)}.</span><button class="btn primary small" data-action="update-now">${u.canApply ? 'Update now' : 'Download'}</button><button class="iconbtn" data-action="update-later" aria-label="Later" title="Later"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>`;
+    bar.hidden = false;
+  } catch {}
+}

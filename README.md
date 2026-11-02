@@ -27,14 +27,22 @@ One file. No installer. Profiles, mods, skins and logs in one place.
 
 | | |
 |---|---|
-| **Profiles** | Separate setups like the Modrinth App. Each has its own Minecraft version (releases, snapshots, betas, alphas), loader, mods, worlds, resource packs, memory, colour and custom icon. Duplicate, edit, open folder, delete. |
-| **Import** | Bring in profiles from the Modrinth App, Prism Launcher, CurseForge, or a `.mrpack` file. |
-| **Mods** | Installed list with on/off switches, update checks and Update all. Browse Modrinth for mods, resource packs and shaders with sorting and endless scrolling. The folder is watched, so mods you drop in appear straight away. |
+| **Profiles** | Separate setups like the Modrinth App. Each has its own Minecraft version (releases, snapshots, betas, alphas), loader, mods, worlds, resource packs, memory, Java, colour and custom icon. Duplicate, edit, open folder, delete. |
+| **Playtime** | Total time played per profile and a seven-day activity graph on each card. |
+| **Modpacks** | Install Modrinth modpacks straight from Browse. Each one becomes its own profile. |
+| **Import and share** | Bring in profiles from the Modrinth App, Prism Launcher, CurseForge, or a `.mrpack` file. Share any profile as a `.mrpack` that Auroria, the Modrinth App and Prism can import. |
+| **Mods** | Installed list with on/off switches, update checks and Update all. Browse Modrinth for mods, resource packs and shaders with sorting and endless scrolling. Required dependencies install with the mod, and Auroria warns before you remove or turn off a mod that others need. Mods you drop into the folder appear straight away. |
+| **Worlds** | List each profile's worlds, back them up in one click and restore any backup. Restoring backs up the current world first. |
+| **Screenshots** | Browse each profile's screenshots in the launcher. |
+| **Servers** | Save servers per profile with live ping, player count and MOTD, and join one directly. |
+| **Settings sync** | Copy key binds, video settings and sound volumes from one profile to another. |
+| **Java** | Automatic by default (the right Java for each version, downloaded for you), or pick any Java installed on your PC per profile. |
 | **Launch check** | Before Play, Auroria scans the mods and warns about ones that do not support your Minecraft version, missing dependencies and duplicates, with a Delete button per mod. |
-| **Crash help** | If the game exits unexpectedly, Auroria reads the crash and tells you the likely cause. |
+| **Crash help** | If the game exits unexpectedly, Auroria reads the crash, tells you the likely cause and can upload the log to mclo.gs. |
 | **Game logs** | A live log page (shown only while the game runs) with search, level filters, wrap, copy, save, and one-click **upload to mclo.gs** for sharing. |
 | **Accounts** | Multiple Microsoft accounts with a quick switcher. |
 | **Skins** | Real 3D player model with idle, walk, run, wave and crouch animations. Upload skins, wear them, switch capes. |
+| **Updates** | Auroria checks GitHub for a new version on start and updates itself in one click, after checking the download's SHA-256. |
 | **Settings** | Memory, window size, fullscreen, custom Java path, keep launcher open. |
 
 Play downloads the right Java runtime, game files, libraries and assets from Mojang automatically, then starts Minecraft. If a profile has a server set, it joins it directly (Quick Play on 1.20+).
