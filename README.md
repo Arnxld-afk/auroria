@@ -109,6 +109,10 @@ then open the printed URL.
 
 Auroria is a Node single-executable app. A small local HTTP server handles launching, downloads and the Mojang, Microsoft and Modrinth APIs, and the interface (plain HTML, CSS and JS) runs in a native WebView2 window.
 
+## License
+
+Auroria is released under the [MIT License](LICENSE). Bundled fonts and libraries keep their own licenses, listed below.
+
 ## Credits
 
 Not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Studios.
