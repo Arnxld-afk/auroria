@@ -9,6 +9,11 @@
     flame: ['....X...', '...XX...', '..XXXX..', '.XXYXXX.', '.XYYYXX.', '.XYYYYX.', '..XYYX..', '...XX...'],
     heads: ['.SSSS...', '.SKKS.SS', '.SSSSSKK', '.BBBB.SS', 'BBBBBB.B', '.......B', '........', '........'],
     steve: ['..BBBB..', '.BSSSSB.', '.SKSSKS.', '.SSBBSS.', 'TTTTTTTT', 'STTTTTTS', 'S.DDDD.S', '..D..D..'],
+    globe: ['..GGGG..', '.GGBBGG.', 'GGBBGGTG', 'GBBGGTTG', 'GGGGTTBG', 'GTTTTBBG', '.GTTBBG.', '..GGGG..'],
+    clock: ['..KKKK..', '.KWWWWK.', 'KWWKWWWK', 'KWWKWWWK', 'KWWKKKWK', 'KWWWWWWK', '.KWWWWK.', '..KKKK..'],
+    gear: ['...XX...', '.X.XX.X.', '..XXXX..', 'XXXDDXXX', 'XXXDDXXX', '..XXXX..', '.X.XX.X.', '...XX...'],
+    up: ['...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', '...XX...', '...XX...', '...XX...', '...XX...'],
+    camera: ['........', '..KK....', 'KKKKKKKK', 'KXXKKXXK', 'KXKWWKXK', 'KXKWWKXK', 'KXXKKXXK', 'KKKKKKKK'],
     bolt: ['....XX..', '...XX...', '..XX....', '.XXXXXX.', '...XX...', '..XX....', '.XX.....', 'X.......'],
   };
   document.querySelectorAll('canvas[data-px]').forEach((c) => {
