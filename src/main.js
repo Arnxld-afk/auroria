@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const zlib = require('zlib');
 const { spawn } = require('child_process');
 
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const UA = `Auroria-Launcher/${VERSION}`;
 const IS_WIN = process.platform === 'win32';
 
@@ -1148,6 +1148,21 @@ function mcSatisfies(ver, range) {
     return d === 0;
   }));
 }
+// Mod ids a Fabric jar carries inside itself (jar-in-jar, listed under "jars"), e.g. Lithium bundles MixinExtras.
+function bundledIds(z, j, depth = 0) {
+  const out = [];
+  for (const ref of j.jars || []) {
+    try {
+      const e = z.find((x) => x.name === ref.file); if (!e) continue;
+      const inner = zipEntries(e.read()); const fj = inner.find((x) => x.name === 'fabric.mod.json'); if (!fj) continue;
+      const ij = JSON.parse(fj.read().toString('utf8'));
+      if (ij.id) out.push(ij.id);
+      out.push(...(ij.provides || []));
+      if (depth < 2) out.push(...bundledIds(inner, ij, depth + 1));
+    } catch {}
+  }
+  return out;
+}
 // Finds problems the loader would refuse to start with: two copies of a mod, and (Fabric/Quilt only) a missing required mod
 // or a mod for another Minecraft version. Forge only gets the duplicate check; its own popup covers the rest.
 async function analyzeMods(server) {
@@ -1161,7 +1176,7 @@ async function analyzeMods(server) {
       const z = zipEntries(await fsp.readFile(path.join(dir, f)));
       const fe = z.find((e) => e.name === 'fabric.mod.json'), qe = z.find((e) => e.name === 'quilt.mod.json');
       let m = null;
-      if (fe) { const j = JSON.parse(fe.read().toString('utf8')); m = { id: j.id, name: j.name || j.id, version: j.version, provides: j.provides || [], depends: j.depends || {} }; }
+      if (fe) { const j = JSON.parse(fe.read().toString('utf8')); m = { id: j.id, name: j.name || j.id, version: j.version, provides: [...(j.provides || []), ...bundledIds(z, j)], depends: j.depends || {} }; }
       else if (qe) { const q = JSON.parse(qe.read().toString('utf8')).quilt_loader || {}; m = { id: q.id, name: (q.metadata && q.metadata.name) || q.id, version: q.version, provides: (q.provides || []).map((p) => (typeof p === 'string' ? p : p.id)), depends: Object.fromEntries((q.depends || []).filter((d) => typeof d === 'object' && !d.optional && d.id).map((d) => [d.id, d.versions || '*'])) }; }
       if (!m && !fabricLike) { // Forge: mcmod.info (1.7 to 1.12) or mods.toml (1.13 and newer) names the mod id
         const info = z.find((e) => e.name === 'mcmod.info'), toml = z.find((e) => e.name === 'META-INF/mods.toml' || e.name === 'META-INF/neoforge.mods.toml');
@@ -1189,7 +1204,8 @@ async function analyzeMods(server) {
   }
   for (const [id, list] of byId) if (list.length > 1) problems.push({ type: 'duplicate', text: `Two copies of ${list[0].name} are installed. Delete one.`, mods: list.map((x) => ({ file: x.file, name: x.name, version: x.version })) });
   if (!fabricLike) return problems;
-  const builtin = new Set(['minecraft', 'java', 'fabricloader', 'fabric-loader', 'quilt_loader', 'quilt-loader']);
+  // Fabric Loader 0.15+ and Quilt ship MixinExtras themselves.
+  const builtin = new Set(['minecraft', 'java', 'fabricloader', 'fabric-loader', 'quilt_loader', 'quilt-loader', 'mixinextras']);
   const hasFabricApi = have.has('fabric-api') || have.has('fabric');
   const nice = (id) => (/^fabric(-api)?($|-)/.test(id) ? 'Fabric API' : (have.get(id) || {}).name || id);
   for (const m of mods) {
@@ -1200,7 +1216,7 @@ async function analyzeMods(server) {
       }
       if (have.has(dep) || (dep.startsWith('fabric-') && hasFabricApi)) continue;
       const t = `${m.name} needs ${nice(dep)}, which is not installed.`;
-      if (!problems.some((p) => p.text === t)) problems.push({ type: 'missing', text: t, mods: [{ file: m.file, name: m.name, version: m.version }] });
+      if (!problems.some((p) => p.text === t)) problems.push({ type: 'missing', dep, depName: nice(dep), text: t, mods: [{ file: m.file, name: m.name, version: m.version }] });
     }
   }
   return problems;
@@ -2114,6 +2130,25 @@ const routes = {
     const mods = await listMods(s);
     if (b.withDeps) return { mods, deps: Math.max(0, visited.size - 1) };
     return mods;
+  },
+  // A mod id from fabric.mod.json is usually the Modrinth slug; otherwise take the best search hit for this version and loader.
+  'POST /api/mods/install-dep': async (b) => {
+    const s = serverById(b.server); const dep = String(b.dep || '');
+    if (!/^[a-z0-9_.-]{1,64}$/i.test(dep)) throw new Error('Unknown mod.');
+    let project = null;
+    if (/^fabric(-api)?($|-)/.test(dep)) project = await getJson(`${MR}/project/P7dR8mSH`);
+    if (!project) project = await getJson(`${MR}/project/${encodeURIComponent(dep)}`).catch(() => null);
+    if (!project || project.project_type !== 'mod') {
+      const facets = [['project_type:mod'], [`versions:${s.version}`], modLoaders(s).map((l) => `categories:${l}`)];
+      const r = await getJson(`${MR}/search?query=${encodeURIComponent(dep.replace(/[-_]/g, ' '))}&facets=${encodeURIComponent(JSON.stringify(facets))}&limit=5`);
+      const hit = r.hits.find((h) => h.slug === dep || h.slug.replace(/-/g, '') === dep.replace(/[-_]/g, '')) || r.hits[0];
+      if (!hit) throw new Error(`Could not find "${dep}" on Modrinth for Minecraft ${s.version}. Look for it under Browse.`);
+      project = { id: hit.project_id, title: hit.title };
+    }
+    const before = await listMods(s); const have = new Set(before.map((m) => m.projectId).filter(Boolean));
+    const visited = new Set(); await installModProject(s, project.id, visited, 'mod', have);
+    for (const pid of visited) await dropReplacedJars(s, pid, before);
+    return { title: project.title, mods: await listMods(s) };
   },
   'GET /api/mods/dependents': async (b, q) => modDependents(serverById(q.get('server')), path.basename(q.get('file') || '')),
   'GET /api/java': async (b, q) => {

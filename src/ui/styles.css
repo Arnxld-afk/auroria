@@ -703,3 +703,6 @@ html, body { font-size: 13px; }
 .scene::before, .scene::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--scene-tint, transparent); transition: opacity .5s, background .5s; }
 .scene::before { mix-blend-mode: color; opacity: var(--scene-tint-a, 0); }
 .scene::after { mix-blend-mode: soft-light; opacity: var(--scene-soft-a, 0); }
+
+.chk-text { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chk-fix { flex: none; }

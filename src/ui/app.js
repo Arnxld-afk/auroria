@@ -519,7 +519,7 @@ async function startLaunch(id, join) {
 }
 // One row per problem, with a Delete button for each mod involved (two copies show both, so you pick which one goes).
 function chkRows(problems) {
-  return problems.map((p) => `<li class="chk-item"><div class="chk-text">${esc(p.text)}</div>${(p.mods || []).length ? `<div class="chk-mods">${p.mods.map((m) => `<div class="chk-mod"><span class="chk-name"><b>${esc(m.name)}${m.version ? ` <i>${esc(m.version)}</i>` : ''}</b><small>${esc(m.file)}</small></span><button class="btn small danger" data-action="chk-delete" data-file="${esc(m.file)}">Delete</button></div>`).join('')}</div>` : ''}</li>`).join('');
+  return problems.map((p) => `<li class="chk-item"><div class="chk-text">${esc(p.text)}${p.type === 'missing' && p.dep ? `<button class="btn small primary chk-fix" data-action="chk-install" data-dep="${esc(p.dep)}">Install ${esc(p.depName || p.dep)}</button>` : ''}</div>${(p.mods || []).length ? `<div class="chk-mods">${p.mods.map((m) => `<div class="chk-mod"><span class="chk-name"><b>${esc(m.name)}${m.version ? ` <i>${esc(m.version)}</i>` : ''}</b><small>${esc(m.file)}</small></span><button class="btn small danger" data-action="chk-delete" data-file="${esc(m.file)}">Delete</button></div>`).join('')}</div>` : ''}</li>`).join('');
 }
 function launchCheckModal(s, chk) {
   S.launchChk = { id: s.id, outdated: chk.outdated, name: s.name };
@@ -1101,6 +1101,17 @@ const actions = {
       if (document.getElementById('crash-fix')) { const box = $('#crash-fix'); box.innerHTML = chk.problems.length ? `<div class="chk-block err"><b>Found in your mods</b><ul>${chkRows(chk.problems)}</ul></div>` : '<div class="chk-block ok"><b>No problems found in your mods now. Try playing again.</b></div>'; toast('Mod deleted'); }
       else { launchCheckModal(s, chk); toast('Mod deleted'); }
     } catch (e) { toast(e.message, true); el.disabled = false; el.textContent = 'Delete'; }
+  },
+  'chk-install': async (el) => {
+    const c = S.launchChk; if (!c) return; el.disabled = true; el.innerHTML = '<span class="spinner"></span>Installing…';
+    try {
+      const r = await api('POST', '/api/mods/install-dep', { server: c.id, dep: el.dataset.dep }); S.mods = null; S.modsServer = null;
+      const chk = await api('GET', `/api/launch-check?server=${encodeURIComponent(c.id)}`);
+      const s = servers().find((x) => x.id === c.id) || selected();
+      if (document.getElementById('crash-fix')) { $('#crash-fix').innerHTML = chk.problems.length ? `<div class="chk-block err"><b>Found in your mods</b><ul>${chkRows(chk.problems)}</ul></div>` : '<div class="chk-block ok"><b>No problems found in your mods now. Try playing again.</b></div>'; }
+      else launchCheckModal(s, chk);
+      toast(`${r.title} installed`);
+    } catch (e) { toast(e.message, true); el.disabled = false; el.textContent = `Install ${el.dataset.dep}`; }
   },
   'go-mods': () => { closeModal(); go('mods'); },
   'go-logs': () => { closeModal(); go('logs'); },

@@ -52,12 +52,12 @@ const groupId = groups.length ? groups[0].id : 1;
 const lang = groups.length ? groups[0].lang : 1033;
 ResEdit.Resource.IconGroupEntry.replaceIconsForResource(res.entries, groupId, lang, ico.icons.map((i) => i.data));
 const vi = ResEdit.Resource.VersionInfo.fromEntries(res.entries)[0] || ResEdit.Resource.VersionInfo.createEmpty();
-vi.setFileVersion(1, 2, 0, 0, lang);
-vi.setProductVersion(1, 2, 0, 0, lang);
+vi.setFileVersion(1, 2, 1, 0, lang);
+vi.setProductVersion(1, 2, 1, 0, lang);
 vi.setStringValues({ lang, codepage: 1200 }, {
   FileDescription: 'Auroria Launcher', ProductName: 'Auroria', CompanyName: 'Auroria',
   InternalName: 'Auroria', OriginalFilename: 'Auroria.exe', LegalCopyright: 'Auroria. Minecraft is a trademark of Mojang Studios.',
-  FileVersion: '1.2.0', ProductVersion: '1.2.0',
+  FileVersion: '1.2.1', ProductVersion: '1.2.1',
 });
 vi.outputToResourceEntries(res.entries);
 res.outputResource(exe);
