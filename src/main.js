@@ -198,6 +198,7 @@ function setProgress(stage, done, total) {
 }
 function setGameState(g, state, extra = {}) {
   g.state = state; if (state === 'idle') g.progress = null;
+  if (hostShown) winCmd(anyRunning() ? 'MEM LOW' : 'MEM NORMAL');
   broadcast({ type: 'game', state, serverId: g.serverId, account: g.accountName || '', ...extra });
 }
 
@@ -2416,11 +2417,7 @@ function winCmd(cmd) {
 
 // ---------- native window (Windows): a borderless WebView2 window, no browser title bar ----------
 // Runs in a hidden PowerShell process that compiles a small WinForms host. Talks over stdin/stdout like the helper above.
-const HOST_PS = String.raw`
-$ErrorActionPreference = 'Stop'
-$sdk = $env:AURORIA_SDK
-try {
-$src = @"
+const HOST_CS = String.raw`
 using System; using System.Drawing; using System.IO; using System.Reflection; using System.Threading; using System.Windows.Forms; using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core; using Microsoft.Web.WebView2.WinForms;
 public static class AuroriaResolver {
@@ -2455,7 +2452,8 @@ public class AuroriaHost : Form {
     Opacity = 0;
     System.Windows.Forms.Timer failsafe = new System.Windows.Forms.Timer(); failsafe.Interval = 7000; failsafe.Tick += (o, a) => { failsafe.Stop(); Reveal(); }; failsafe.Start();
     web = new WebView2(); web.Dock = DockStyle.Fill; web.DefaultBackgroundColor = BackColor;
-    CoreWebView2CreationProperties props = new CoreWebView2CreationProperties(); props.UserDataFolder = profile; web.CreationProperties = props;
+    CoreWebView2CreationProperties props = new CoreWebView2CreationProperties(); props.UserDataFolder = profile;
+    props.AdditionalBrowserArguments = Environment.GetEnvironmentVariable("AURORIA_WV_ARGS") ?? ""; web.CreationProperties = props;
     web.CoreWebView2InitializationCompleted += OnReady;
     Controls.Add(web);
     web.Source = new Uri(url);
@@ -2503,6 +2501,7 @@ public class AuroriaHost : Form {
       case "SHOW": if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; Show(); Activate(); SetForegroundWindow(Handle); break;
       case "RECT": r = "RECT " + Left + " " + Top + " " + (WindowState == FormWindowState.Maximized ? "True" : "False"); break;
       case "POS": if (p.Length > 2) Location = new Point(int.Parse(p[1]), int.Parse(p[2])); break;
+      case "MEM": gameRunning = p.Length > 1 && p[1] == "LOW"; ApplyMemory(); break;
       default: r = "ERR"; break;
     }
     if (reply) Say(r);
@@ -2517,7 +2516,16 @@ public class AuroriaHost : Form {
     }
     base.WndProc(ref m);
   }
-  protected override void OnResize(EventArgs e) { base.OnResize(e); Padding = WindowState == FormWindowState.Maximized ? new Padding(0) : new Padding(2); }
+  protected override void OnResize(EventArgs e) { base.OnResize(e); Padding = WindowState == FormWindowState.Maximized ? new Padding(0) : new Padding(2); ApplyMemory(); }
+  // WebView2 trims its caches and working set when told memory is low: while minimized, or while a game runs and the window is in the background.
+  bool gameRunning;
+  protected override void OnActivated(EventArgs e) { base.OnActivated(e); ApplyMemory(); }
+  protected override void OnDeactivate(EventArgs e) { base.OnDeactivate(e); ApplyMemory(); }
+  void ApplyMemory() {
+    if (web == null || web.CoreWebView2 == null) return;
+    bool low = WindowState == FormWindowState.Minimized || (gameRunning && Form.ActiveForm != this);
+    try { web.CoreWebView2.MemoryUsageTargetLevel = low ? CoreWebView2MemoryUsageTargetLevel.Low : CoreWebView2MemoryUsageTargetLevel.Normal; } catch { }
+  }
   public static void Run(string url, string profile, string icon, string sdk) {
     try { SetProcessDpiAwarenessContext((IntPtr)(-4)); } catch { try { SetProcessDPIAware(); } catch { } }
     try { SetCurrentProcessExplicitAppUserModelID("Auroria.Launcher"); } catch { }
@@ -2526,7 +2534,24 @@ public class AuroriaHost : Form {
     Application.Run(new AuroriaHost(url, profile, icon));
   }
 }
-"@
+// Entry point when the host is compiled to its own exe (no PowerShell). The resolver must be in place before
+// any WebView2 type loads, so the WebView2-facing code sits behind a method that is not inlined.
+public static class AuroriaEntry {
+  [STAThread] public static int Main() {
+    string sdk = Environment.GetEnvironmentVariable("AURORIA_SDK");
+    AuroriaResolver.Install(sdk);
+    Console.Out.WriteLine("READY"); Console.Out.Flush();
+    Go(sdk); return 0;
+  }
+  [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+  static void Go(string sdk) { AuroriaHost.Run(Environment.GetEnvironmentVariable("AURORIA_URL"), Environment.GetEnvironmentVariable("AURORIA_PROFILE"), Environment.GetEnvironmentVariable("AURORIA_ICON"), sdk); }
+}
+`;
+const HOST_PS = String.raw`
+$ErrorActionPreference = 'Stop'
+$sdk = $env:AURORIA_SDK
+try {
+$src = $env:AURORIA_HOST_CS
 # Compiling this C# costs ~0.5 s on every start (two csc runs). Compile once per source version and load the cached assembly after that.
 $sha = [System.Security.Cryptography.SHA1]::Create()
 $hash = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($src)) | ForEach-Object { $_.ToString('x2') })
@@ -2572,12 +2597,36 @@ async function ensureWebViewSdk() {
   await fsp.writeFile(marker, WV_VERSION);
 }
 let hostShown = false;
-function startHost(url) {
+// Trims what WebView2 runs: no background services Auroria never uses, and the network service inside the browser process.
+const WV_ARGS = ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-extensions', '--disable-default-apps', '--no-first-run',
+  '--disable-features=msSmartScreenProtection,msWebOOUI,msPdfOOUI,Translate,AutofillServerCommunication,OptimizationHints,MediaRouter,SpareRendererForSitePerProcess,msEdgeSidebarV2',
+  '--enable-features=NetworkServiceInProcess2', '--renderer-process-limit=1'].join(' ');
+const CSC = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+async function ensureHostExe() {
+  if (!(await exists(CSC))) return null;
+  const hash = sha1(Buffer.from(HOST_CS + WV_VERSION)).slice(0, 12);
+  const cache = path.join(DATA, 'cache'); const exe = path.join(cache, `auroria-host-${hash}.exe`);
+  if (await exists(exe)) return exe;
+  await ensureDir(cache);
+  const cs = path.join(cache, `auroria-host-${hash}.cs`); const tmp = exe + '.tmp.exe';
+  await fsp.writeFile(cs, HOST_CS);
+  const args = ['/nologo', '/optimize+', '/target:winexe', '/platform:anycpu', '/main:AuroriaEntry', `/out:${tmp}`, `/win32icon:${await hostIcon(cache)}`,
+    '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', `/r:${path.join(WV_SDK, 'Microsoft.Web.WebView2.Core.dll')}`, `/r:${path.join(WV_SDK, 'Microsoft.Web.WebView2.WinForms.dll')}`, cs];
+  const r = await new Promise((resolve) => { const c = spawn(CSC, args, { windowsHide: true }); let out = ''; c.stdout.on('data', (d) => { out += d; }); c.on('error', (e) => resolve({ code: -1, out: e.message })); c.on('exit', (code) => resolve({ code, out })); });
+  await fsp.rm(cs, { force: true });
+  if (r.code !== 0) { logLine('host compile failed', String(r.out).slice(0, 400)); await fsp.rm(tmp, { force: true }); return null; }
+  await fsp.rename(tmp, exe);
+  return exe;
+}
+async function hostIcon(cache) { const f = path.join(cache, 'auroria.ico'); await fsp.writeFile(f, asset('ui/favicon.ico')).catch(() => {}); return f; }
+async function startHost(url) {
   let proc;
+  const env = { ...process.env, AURORIA_URL: url, AURORIA_SDK: WV_SDK, AURORIA_CACHE: path.join(DATA, 'cache'), AURORIA_PROFILE: path.join(DATA, 'webview', 'profile'), AURORIA_ICON: process.execPath, AURORIA_WV_ARGS: WV_ARGS, AURORIA_HOST_CS: HOST_CS };
+  const exe = await ensureHostExe().catch((e) => { logLine('host compile failed', e.message); return null; });
   try {
-    proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-STA', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(HOST_PS, 'utf16le').toString('base64')], {
-      windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
-      env: { ...process.env, AURORIA_URL: url, AURORIA_SDK: WV_SDK, AURORIA_CACHE: path.join(DATA, 'cache'), AURORIA_PROFILE: path.join(DATA, 'webview', 'profile'), AURORIA_ICON: process.execPath },
+    if (exe) proc = spawn(exe, [], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'], env });
+    else proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-STA', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(HOST_PS, 'utf16le').toString('base64')], {
+      windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'], env,
     });
   } catch (e) { logLine('window host failed', e.message); return false; }
   winHelper = proc; hostShown = false; winBuf = '';
@@ -2623,7 +2672,7 @@ function findBrowser() {
 async function openWindow(url) {
   if (process.env.AURORIA_NO_WINDOW) { console.log(`UI: ${url}`); return; }
   if (IS_WIN && !process.env.AURORIA_EDGE_WINDOW) {
-    try { await ensureWebViewSdk(); if (startHost(url)) return; } catch (e) { logLine('native window unavailable', e.message); }
+    try { await ensureWebViewSdk(); if (await startHost(url)) return; } catch (e) { logLine('native window unavailable', e.message); }
   }
   openEdgeWindow(url);
 }

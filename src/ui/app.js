@@ -147,6 +147,14 @@ async function paintSkins() {
 
 /* ---------------- 3D player models (skinview3d) ---------------- */
 const viewers = new Map(); // key -> { v, canvas, src, model, cape, anim, name, rotate }
+// The 3D characters redraw every frame; stop that while nobody can see them (window hidden or minimized,
+// or in the background while a game runs), which frees the GPU and CPU for Minecraft.
+function sync3dPause() {
+  const pause = document.hidden || (anyGame() && !document.hasFocus());
+  for (const rec of viewers.values()) if (rec.v && rec.v.renderPaused !== pause) rec.v.renderPaused = pause;
+}
+document.addEventListener('visibilitychange', sync3dPause);
+addEventListener('focus', sync3dPause); addEventListener('blur', sync3dPause);
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function makeAnim(kind) {
   const s3 = window.skinview3d; let a;
@@ -218,6 +226,7 @@ function mount3d() {
         if (key === 'home') S.homeFrame = new Promise((res) => { v.__onFrame = res; });
       } catch { rec = { v: null, canvas }; if (key === 'home') S.homeFrame = Promise.resolve(); }
       viewers.set(key, rec);
+      sync3dPause();
     }
     if (rec.shadow) host.appendChild(rec.shadow);
     host.appendChild(rec.canvas);
@@ -275,7 +284,7 @@ function renderAccount() {
 const IDLE = Object.freeze({ state: 'idle', progress: null });
 function G(id) { const g = S.state && S.state.games && S.state.games[id || selected().id]; return g || IDLE; }
 function setG(id, patch) { S.state.games = S.state.games || {}; S.state.games[id] = { ...G(id), ...patch }; }
-const anyGame = () => Object.values(S.state.games || {}).some((g) => g.state !== 'idle');
+const anyGame = () => Object.values((S.state && S.state.games) || {}).some((g) => g.state !== 'idle');
 function pageHome() {
   const s = selected(); const g = G(s.id); const ping = S.pings[s.id]; const prof = S.state.profile;
   let online = '';
@@ -1486,6 +1495,7 @@ function connectEvents() {
       setG(sid, { state: ev.state, account: ev.account || '', ...(ev.state === 'idle' ? { progress: null } : {}) });
       if (ev.state === 'preparing' && was !== 'running' && !(S.logBufs[sid] && S.logBufs[sid].live)) { logReset(sid); logBuf(sid).live = true; S.logSid = sid; }
       if (ev.state === 'idle') logBuf(sid).live = false;
+      sync3dPause();
       if (ev.state === 'idle' && (ev.crash || ev.error)) { S.logSid = sid; crashModal(ev); }
       if (ev.error && sid === selected().id) S.launchError = ev.error;
       if (ev.state === 'running') { S.launchError = ''; toast('Minecraft is starting'); }
