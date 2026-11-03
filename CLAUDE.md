@@ -8,6 +8,7 @@ Minecraft: Java Edition launcher for Windows. One file, `Auroria.exe`: a Node si
 ## Layout
 
 - `src/main.js`: the whole backend. Local HTTP server on 127.0.0.1 with a per-run token, all `/api/*` routes in the `routes` object, game install and launch, Modrinth, auth, Discord, notifications, self-update, and the PowerShell scripts that host the window (`HOST_PS`) and create shortcuts.
+- Several profiles can play at once, each with its own account: `games` (Map by profile id) holds each game's state, process and log; `launchCtx` (AsyncLocalStorage) ties `setProgress` to the launch it runs in. The UI reads a profile's state with `G(id)`; logs are kept per profile in `S.logBufs`.
 - `src/ui/`: `index.html` (splash, SVG icon defs, theme function `window.auroriaAccent`), `app.js` (state `S`, `render()`, pages, `actions` map for `data-action` buttons), `styles.css` (later rules override earlier ones; new sections are appended).
 - `build.mjs`: makes the SEA. Embedded assets are listed at the top.
 - `docs/`: the website. `docs/assets/flame/<hex>.png` are the themed flames Discord loads by URL.

@@ -14,7 +14,7 @@ const dns = require('dns').promises;
 const zlib = require('zlib');
 const { spawn } = require('child_process');
 
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 const UA = `Auroria-Launcher/${VERSION}`;
 const IS_WIN = process.platform === 'win32';
 
@@ -105,7 +105,14 @@ function postForm(url, data) {
 }
 
 // Download with size/sha1 check and retries. Skips files that already exist with the right size.
-async function download(url, dest, { sha1: want, size } = {}) {
+// Two games launching at once often need the same file: the second waits for the first download instead of racing it.
+const downloading = new Map();
+function download(url, dest, opts = {}) {
+  const key = path.resolve(dest);
+  if (!downloading.has(key)) downloading.set(key, downloadOnce(url, dest, opts).finally(() => downloading.delete(key)));
+  return downloading.get(key);
+}
+async function downloadOnce(url, dest, { sha1: want, size } = {}) {
   try {
     const st = await fsp.stat(dest);
     if (size ? st.size === size : st.size > 0) return false;
@@ -133,7 +140,12 @@ let settings = { ...DEFAULT_SETTINGS };
 let config = {};
 let account = null; // active account: { msRefresh, mcToken, mcExpires, profile }
 let accounts = []; // every signed-in account; `account` is one of them
-let game = { state: 'idle', proc: null, serverId: null, progress: null, logs: [] };
+// One entry per profile that is starting or running: several profiles can play at once, each with its own account.
+const games = new Map();
+const launchCtx = new (require('async_hooks').AsyncLocalStorage)();
+function gameOf(id) { if (!games.has(id)) games.set(id, { state: 'idle', proc: null, serverId: id, progress: null, logs: [], userStopped: false }); return games.get(id); }
+const anyRunning = () => [...games.values()].some((g) => g.state !== 'idle');
+const gamesSummary = () => Object.fromEntries([...games.values()].map((g) => [g.serverId, { state: g.state, progress: g.progress, account: g.accountName || '' }]));
 
 async function loadState() {
   await ensureDir(DATA);
@@ -161,10 +173,10 @@ const saveSettings = () => writeJson(P.settings, settings);
 const accountId = (a) => (a && a.profile ? a.profile.id : '');
 const saveAccount = () => (accounts.length ? writeJson(P.account, { active: accountId(account), list: accounts }) : fsp.rm(P.account, { force: true }));
 // Replace the stored copy of an account (matched by profile id) or add it, and make it the active one.
-function setAccount(a) {
+function setAccount(a, activate = true) {
   const i = accounts.findIndex((x) => accountId(x) === accountId(a));
   if (i >= 0) accounts[i] = a; else accounts.push(a);
-  account = a;
+  if (activate) account = a;
 }
 function dropAccount(a) {
   accounts = accounts.filter((x) => accountId(x) !== accountId(a));
@@ -178,13 +190,15 @@ function broadcast(ev) {
   const data = `data: ${JSON.stringify(ev)}\n\n`;
   for (const res of clients) { try { res.write(data); } catch {} }
 }
+// Progress belongs to the launch it runs inside (AsyncLocalStorage), so parallel launches report separately.
 function setProgress(stage, done, total) {
-  game.progress = { stage, done, total };
-  broadcast({ type: 'progress', ...game.progress });
+  const g = launchCtx.getStore(); const progress = { stage, done, total };
+  if (g) g.progress = progress;
+  broadcast({ type: 'progress', serverId: g ? g.serverId : null, ...progress });
 }
-function setGameState(state, extra = {}) {
-  game.state = state;
-  broadcast({ type: 'game', state, serverId: game.serverId, ...extra });
+function setGameState(g, state, extra = {}) {
+  g.state = state; if (state === 'idle') g.progress = null;
+  broadcast({ type: 'game', state, serverId: g.serverId, account: g.accountName || '', ...extra });
 }
 
 // ---------- Microsoft / Minecraft auth ----------
@@ -280,17 +294,18 @@ async function startAuth() {
   return { userCode: dc.user_code, verificationUri: dc.verification_uri || 'https://www.microsoft.com/link', expiresIn: dc.expires_in };
 }
 
-async function ensureFreshAccount() {
-  if (!account) throw new Error('Sign in with your Microsoft account first.');
-  if (account.mcExpires > Date.now()) return account;
-  const mode = account.mode || 'azure'; const A = AUTH[mode];
+async function ensureFreshAccount(a = account) {
+  if (!a) throw new Error('Sign in with your Microsoft account first.');
+  if (a.mcExpires > Date.now()) return a;
+  const mode = a.mode || 'azure'; const A = AUTH[mode];
   let tok;
-  try { tok = await postForm(A.tokenUrl, { grant_type: 'refresh_token', client_id: A.clientId(), refresh_token: account.msRefresh, scope: A.scope }); }
-  catch (e) { if (e.status === 400 || e.status === 401) { dropAccount(account); await saveAccount(); throw new Error('Your sign-in expired. Sign in again.'); } throw e; }
+  try { tok = await postForm(A.tokenUrl, { grant_type: 'refresh_token', client_id: A.clientId(), refresh_token: a.msRefresh, scope: A.scope }); }
+  catch (e) { if (e.status === 400 || e.status === 401) { dropAccount(a); await saveAccount(); throw new Error(`The sign-in for ${a.profile ? a.profile.name : 'this account'} expired. Sign in again.`); } throw e; }
   const mc = await msToMinecraft(tok.access_token, mode);
-  setAccount({ mode, msRefresh: tok.refresh_token || account.msRefresh, ...mc });
+  const fresh = { mode, msRefresh: tok.refresh_token || a.msRefresh, ...mc };
+  setAccount(fresh, accountId(a) === accountId(account));
   await saveAccount();
-  return account;
+  return fresh;
 }
 function publicProfile() {
   if (!account || !account.profile) return null;
@@ -435,7 +450,7 @@ function runJava(java, args, cwd, label) {
   return new Promise((resolve) => {
     const out = [];
     const p = spawn(java, args, { cwd, windowsHide: true });
-    const on = (d) => { const lines = d.toString('utf8').split(/\r?\n/).filter(Boolean); out.push(...lines); game.logs.push(...lines.map((l) => `[${label}] ${l}`)); };
+    const on = (d) => { const lines = d.toString('utf8').split(/\r?\n/).filter(Boolean); out.push(...lines); { const g = launchCtx.getStore(); if (g) g.logs.push(...lines.map((l) => `[${label}] ${l}`)); } };
     p.stdout.on('data', on); p.stderr.on('data', on);
     p.on('error', (e) => resolve({ code: -1, out: [e.message] }));
     p.on('exit', (code) => resolve({ code, out }));
@@ -1243,15 +1258,20 @@ function diagnoseCrash(lines) {
 }
 
 // ---------- launch ----------
-async function launch(serverId, join = '') {
-  if (game.state !== 'idle') throw new Error('The game is already starting or running.');
-  const server = serverById(serverId);
-  game.serverId = server.id;
-  game.logs = [];
-  game.userStopped = false;
-  setGameState('preparing');
+// Plays one profile. accId picks the account (else the profile's own, else the active one).
+async function launch(serverId, join = '', accId = '') {
+  const server = serverById(serverId); const game = gameOf(server.id);
+  if (game.state !== 'idle') throw new Error(`${server.name} is already starting or running.`);
+  const chosen = accounts.find((a) => accountId(a) === (accId || server.accountId)) || account;
+  const busy = [...games.values()].find((g) => g.state !== 'idle' && g.accountId && g.accountId === accountId(chosen));
+  if (busy) throw new Error(`${chosen.profile.name} is already playing ${serverById(busy.serverId).name}. Pick another account for this profile.`);
+  Object.assign(game, { logs: [], userStopped: false, accountId: accountId(chosen), accountName: chosen && chosen.profile ? chosen.profile.name : '' });
+  setGameState(game, 'preparing');
+  return launchCtx.run(game, () => runGame(server, game, join, chosen));
+}
+async function runGame(server, game, join, chosen) {
   try {
-    const acc = await ensureFreshAccount();
+    const acc = await ensureFreshAccount(chosen);
     const profile = await resolveProfile(server);
     const java = server.javaPath && await exists(server.javaPath) ? server.javaPath : await ensureJava(profile.javaComponent);
     const gameDir = instanceDir(server);
@@ -1270,37 +1290,40 @@ async function launch(serverId, join = '') {
     const detached = !settings.keepOpen;
     const proc = spawn(java, args, { cwd: gameDir, detached, windowsHide: false, stdio: detached ? 'ignore' : ['ignore', 'pipe', 'pipe'] });
     game.proc = proc;
-    proc.on('error', (e) => { game.proc = null; setGameState('idle', { error: `Java could not start: ${e.message}` }); });
+    proc.on('error', (e) => { game.proc = null; setGameState(game, 'idle', { error: `Java could not start: ${e.message}` }); });
     if (detached) {
       proc.unref();
-      setGameState('running');
+      setGameState(game, 'running');
       setTimeout(() => { broadcast({ type: 'quit' }); setTimeout(() => process.exit(0), 1500); }, 4000);
       return;
     }
     const onData = (d) => {
       const lines = d.toString('utf8').split(/\r?\n/).filter(Boolean);
       game.logs.push(...lines); if (game.logs.length > 5000) game.logs.splice(0, game.logs.length - 5000);
-      for (const l of lines) broadcast({ type: 'log', line: l });
+      for (const l of lines) broadcast({ type: 'log', serverId: server.id, line: l });
     };
     proc.stdout.on('data', onData); proc.stderr.on('data', onData);
-    setGameState('running');
+    setGameState(game, 'running');
     const startedAt = Date.now();
+    Object.assign(game, { startedAt, join });
     discordSet(server, startedAt, join);
     proc.on('exit', (code) => {
       game.proc = null;
       addPlaytime(server, startedAt, Date.now());
       writeJson(P.servers, config.servers).catch(() => {});
-      discordSet(null);
+      // Discord shows one game: hand it to another profile that is still running, if any.
+      const other = [...games.values()].find((g) => g !== game && g.state === 'running');
+      if (other) discordSet(serverById(other.serverId), other.startedAt, other.join); else discordSet(null);
       const mins = Math.round((Date.now() - startedAt) / 60000);
       if (code && !game.userStopped) notify('Minecraft crashed', `${server.name} closed unexpectedly. Open Auroria to see what went wrong.`);
       else notify('Minecraft closed', `You played ${server.name} for ${mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h ${mins % 60} min`}.`);
       const crashed = code && !game.userStopped;
-      setGameState('idle', crashed ? { error: `Minecraft closed with code ${code}. Check the game log.`, crash: diagnoseCrash(game.logs) } : {});
+      setGameState(game, 'idle', crashed ? { error: `Minecraft closed with code ${code}. Check the game log.`, crash: diagnoseCrash(game.logs) } : {});
       maybeExit();
     });
   } catch (e) {
     logLine('launch failed', e.stack || e.message);
-    setGameState('idle', { error: e.message });
+    setGameState(game, 'idle', { error: e.message });
   }
 }
 
@@ -1479,11 +1502,19 @@ async function importMrpack(buf) {
   return { ...(await commitProfile(entry)), failed };
 }
 // Modrinth modpack from Browse: newest version's .mrpack, then the same import path as a dropped file.
-async function installModpack(projectId) {
+// Versions of a modpack that can be installed, newest first, with the Minecraft versions each one targets.
+async function modpackVersions(projectId) {
+  if (!/^[A-Za-z0-9]{2,64}$/.test(projectId || '')) throw new Error('Unknown modpack.');
+  const versions = await getJson(`${MR}/project/${projectId}/version`);
+  return versions.filter((v) => (v.files || []).some((f) => f.filename.endsWith('.mrpack')))
+    .map((v) => ({ id: v.id, name: v.name, number: v.version_number, gameVersions: v.game_versions || [], loaders: v.loaders || [], date: v.date_published }));
+}
+async function installModpack(projectId, versionId = '', gameVersion = '') {
   if (!/^[A-Za-z0-9]{2,64}$/.test(projectId || '')) throw new Error('Unknown modpack.');
   const [project, versions] = await Promise.all([getJson(`${MR}/project/${projectId}`), getJson(`${MR}/project/${projectId}/version`)]);
-  const ver = versions.find((v) => (v.files || []).some((f) => f.filename.endsWith('.mrpack')));
-  if (!ver) throw new Error('That modpack has no downloadable version.');
+  const packs = versions.filter((v) => (v.files || []).some((f) => f.filename.endsWith('.mrpack')));
+  const ver = versionId ? packs.find((v) => v.id === versionId) : gameVersion ? packs.find((v) => (v.game_versions || []).includes(gameVersion)) : packs[0];
+  if (!ver) throw new Error(versionId ? 'That version of the modpack is no longer available.' : gameVersion ? `That modpack has no version for Minecraft ${gameVersion}.` : 'That modpack has no downloadable version.');
   const file = ver.files.find((f) => f.primary && f.filename.endsWith('.mrpack')) || ver.files.find((f) => f.filename.endsWith('.mrpack'));
   let res; try { res = await fetch(file.url, { headers: { 'User-Agent': UA } }); } catch (e) { throw netError(file.url, e); }
   if (!res.ok) throw new Error(`Modpack download failed (HTTP ${res.status}).`);
@@ -1551,7 +1582,7 @@ function addPlaytime(s, start, end) {
   for (const d of Object.keys(days).sort().slice(0, -30)) delete days[d];
   s.playDays = days;
 }
-const profileBusy = (s) => game.state !== 'idle' && game.serverId === s.id;
+const profileBusy = (s) => !!games.get(s.id) && games.get(s.id).state !== 'idle';
 const savesDir = (s) => path.join(instanceDir(s), 'saves');
 const backupsDir = (s) => path.join(instanceDir(s), 'backups');
 const safeName = (n) => { const b = path.basename(String(n || '')); if (!b || b === '.' || b === '..') throw new Error('Bad name.'); return b; };
@@ -1874,7 +1905,7 @@ async function applyUpdate() {
   const info = await checkUpdate(true); const exe = updateCache.exe;
   if (!info.available || !exe) throw new Error('Auroria is already up to date.');
   if (!info.canApply) throw new Error('Updating in place only works from Auroria.exe. Download the new version from GitHub.');
-  if (game.state !== 'idle') throw new Error('Close Minecraft before updating.');
+  if (anyRunning()) throw new Error('Close Minecraft before updating.');
   const want = /^sha256:([0-9a-f]{64})$/.exec(exe.digest || '');
   if (!want) throw new Error('The release has no checksum, so Auroria will not install it automatically. Download it from GitHub instead.');
   setProgress('Downloading update', 0, 1);
@@ -1921,7 +1952,7 @@ const routes = {
   'GET /api/state': async () => ({
     version: VERSION, windowControls: winReady, clientMods: CLIENT_MODS, ownClientVersions, profile: publicProfile(), accounts: accountList(), settings, hasClientId: true, authMode: authMode(), clientId: config.microsoftClientId || '',
     config: { brand: config.brand, servers: config.servers },
-    game: { state: game.state, serverId: game.serverId, progress: game.progress }, dataDir: DATA, autoPlay: (() => { const p = pendingPlay; pendingPlay = ''; return p; })(),
+    games: gamesSummary(), dataDir: DATA, autoPlay: (() => { const p = pendingPlay; pendingPlay = ''; return p; })(),
   }),
   'POST /api/auth/start': async () => startAuth(),
   'POST /api/config/client-id': async (b) => {
@@ -1937,7 +1968,6 @@ const routes = {
   'POST /api/auth/switch': async (b) => {
     const a = accounts.find((x) => accountId(x) === b.id);
     if (!a) throw new Error('That account is no longer signed in.');
-    if (game.state !== 'idle') throw new Error('Stop the game before switching accounts.');
     account = a; await saveAccount();
     return { profile: publicProfile(), accounts: accountList() };
   },
@@ -1975,6 +2005,7 @@ const routes = {
     const javaPath = b.javaPath === undefined ? (entry.javaPath || '') : String(b.javaPath || '').trim();
     if (javaPath && (!/(^|[\\/])javaw?(\.exe)?$/i.test(javaPath) || !(await exists(javaPath)))) throw new Error('That Java was not found. Pick one from the list, or leave it on Automatic.');
     entry.javaPath = javaPath;
+    if (b.accountId !== undefined) entry.accountId = accounts.some((a) => accountId(a) === b.accountId) ? b.accountId : '';
     if (entry.version && (entry.version !== version || entry.loader !== loader || (entry.loaderVersion || '') !== loaderVersion)) entry.changed = Date.now();
     const client = true; // Auroria Client is part of every profile
     Object.assign(entry, { client, name, address, version, loader, loaderVersion, mods, color, icon, ramGB, description: String(b.description || '').trim().slice(0, 120), tags: tag ? [tag] : [], badge: entry.badge || '', created: entry.created || Date.now() });
@@ -2017,7 +2048,8 @@ const routes = {
     if (!m) throw new Error('No file received.');
     return importMrpack(Buffer.from(m[1], 'base64'));
   },
-  'POST /api/modpacks/install': async (b) => { const r = await installModpack(String(b.projectId || '')); const e = config.servers.find((x) => x.id === r.id); notify('Modpack installed', `${e ? e.name : 'The modpack'} is ready to play.`); return r; },
+  'GET /api/modpacks/versions': async (b, q) => modpackVersions(String(q.get('projectId') || '')),
+  'POST /api/modpacks/install': async (b) => { const r = await installModpack(String(b.projectId || ''), String(b.versionId || ''), String(b.gameVersion || '')); const e = config.servers.find((x) => x.id === r.id); notify('Modpack installed', `${e ? e.name : 'The modpack'} is ready to play.`); return r; },
   'GET /api/snapshots': async (b, q) => listSnapshots(serverById(q.get('server'))),
   'POST /api/snapshots/take': async (b) => { const s = serverById(b.server); if (profileBusy(s)) throw new Error('Close Minecraft first.'); await takeSnapshot(s, b.label || 'manual'); return listSnapshots(s); },
   'POST /api/snapshots/restore': async (b) => { const s = serverById(b.server); if (profileBusy(s)) throw new Error('Close Minecraft before restoring a snapshot.'); await restoreSnapshot(s, b.file); return listSnapshots(s); },
@@ -2082,20 +2114,23 @@ const routes = {
   },
   'GET /api/servers/ping': async () => Promise.all(config.servers.map(async (s) => ({ id: s.id, ...(s.address ? await pingServer(s.address) : { online: null }) }))),
   'POST /api/launch': async (b) => {
-    if (game.state !== 'idle') throw new Error('The game is already starting or running.');
+    const s = serverById(b.serverId || settings.selectedServer);
+    if (profileBusy(s)) throw new Error(`${s.name} is already starting or running.`);
     const join = String(b.join || '').trim();
     if (join && !/^[a-z0-9.\-[\]:]+$/i.test(join)) throw new Error('That server address is not valid.');
-    launch(b.serverId || settings.selectedServer, join).catch((e) => logLine('launch rejected', e.message)); // launch reports its own failures; never let one take the process down
+    const acc = String(b.account || '');
+    if (acc && !accounts.some((a) => accountId(a) === acc)) throw new Error('That account is no longer signed in.');
+    launch(s.id, join, acc).catch((e) => logLine('launch rejected', e.message)); // launch reports its own failures; never let one take the process down
     return { ok: true };
   },
-  'POST /api/stop': async () => { if (game.proc) { game.userStopped = true; game.proc.kill(); } return { ok: true }; },
+  'POST /api/stop': async (b) => { const g = games.get(String(b.serverId || '')); if (g && g.proc) { g.userStopped = true; g.proc.kill(); } return { ok: true }; },
   'GET /api/launch-check': async (b, q) => {
     const s = serverById(q.get('server'));
     if (!s || s.loader === 'vanilla') return { outdated: [], problems: [] };
     const [problems, outdated] = await Promise.all([analyzeMods(s).catch(() => []), Promise.race([modUpdates(s), sleep(7000).then(() => [])]).catch(() => [])]);
     return { problems, outdated };
   },
-  'GET /api/logs': async () => ({ lines: game.logs }),
+  'GET /api/logs': async () => ({ games: Object.fromEntries([...games.values()].filter((g) => g.logs.length).map((g) => [g.serverId, g.logs])) }),
   'GET /api/mods': async (b, q) => listMods(serverById(q.get('server')), q.get('fast') !== '1'),
   'GET /api/mods/sig': async (b, q) => {
     const dir = modsDir(serverById(q.get('server')));
@@ -2109,7 +2144,8 @@ const routes = {
     const s = serverById(q.get('server'));
     const type = q.get('type') === 'modpack' ? 'modpack' : PACK_TYPES[q.get('type')] ? q.get('type') : 'mod';
     // Modpacks bring their own version and loader and become a new profile, so they are not filtered by this one.
-    const facets = type === 'modpack' ? [['project_type:modpack']] : [[`versions:${s.version}`], [`project_type:${type}`]];
+    const mcFilter = /^[0-9a-z.\-_ ]{2,40}$/i.test(q.get('mc') || '') ? q.get('mc') : '';
+    const facets = type === 'modpack' ? [['project_type:modpack'], ...(mcFilter ? [[`versions:${mcFilter}`]] : [])] : [[`versions:${s.version}`], [`project_type:${type}`]];
     if (type === 'mod') facets.push(modLoaders(s).map((l) => `categories:${l}`));
     const index = ['relevance', 'downloads', 'newest', 'updated', 'follows'].includes(q.get('sort')) ? q.get('sort') : 'relevance';
     const offset = Math.max(0, Number(q.get('offset')) || 0);
@@ -2572,7 +2608,7 @@ function maybeExit() {
   if (process.env.AURORIA_NO_WINDOW) return;
   clearTimeout(exitTimer);
   exitTimer = setTimeout(() => {
-    if (clients.size === 0 && everConnected && game.state === 'idle') shutdown();
+    if (clients.size === 0 && everConnected && !anyRunning()) shutdown();
   }, 8000);
 }
 async function shutdown() { try { if (winHelper) winHelper.kill(); } catch {} try { await fsp.rm(P.lock, { force: true }); } catch {} process.exit(0); }

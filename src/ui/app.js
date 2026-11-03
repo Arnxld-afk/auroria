@@ -271,8 +271,13 @@ function renderAccount() {
 }
 
 /* ---------------- pages ---------------- */
+// Game state of one profile (several can run at once); idle when it is not starting or running.
+const IDLE = Object.freeze({ state: 'idle', progress: null });
+function G(id) { const g = S.state && S.state.games && S.state.games[id || selected().id]; return g || IDLE; }
+function setG(id, patch) { S.state.games = S.state.games || {}; S.state.games[id] = { ...G(id), ...patch }; }
+const anyGame = () => Object.values(S.state.games || {}).some((g) => g.state !== 'idle');
 function pageHome() {
-  const s = selected(); const g = S.state.game; const ping = S.pings[s.id]; const prof = S.state.profile;
+  const s = selected(); const g = G(s.id); const ping = S.pings[s.id]; const prof = S.state.profile;
   let online = '';
   if (s.address) online = ping && ping.online ? `<span class="dot on"></span><span class="tnum">${fmt(ping.players)} online</span>` : `<span class="dot"></span><span>${ping ? 'Offline' : 'Checking…'}</span>`;
   let btn;
@@ -284,7 +289,7 @@ function pageHome() {
   else btn = `<button class="play" data-action="launch">${ICON.play}PLAY</button>`;
   let status = '';
   if (g.state === 'preparing' && g.progress) status = `<div class="status-line"><span class="spinner"></span>${esc(g.progress.stage)}${g.progress.total > 1 ? ` <span class="tnum">${fmt(g.progress.done)} / ${fmt(g.progress.total)}</span>` : ''}</div>`;
-  else if (g.state === 'running') status = `<div class="status-line">Minecraft is running. Press PLAYING to stop it. <button class="linkish" data-action="logs">Game log</button></div>`;
+  else if (g.state === 'running') status = `<div class="status-line">Minecraft is running${g.account ? ` as ${esc(g.account)}` : ''}. Press PLAYING to stop it. <button class="linkish" data-action="logs">Game log</button></div>`;
   else if (S.launchError) status = `<div class="status-line err">${esc(S.launchError)} <button class="linkish" data-action="logs">Game log</button></div>`;
   else status = '<div class="status-line"></div>';
   return `<section class="home">
@@ -330,14 +335,14 @@ function pageServers() {
     return `<article class="card profile ${isSel ? 'selected' : ''}" style="--pc:${esc(s.color || '#f07f2a')}">
       <div class="p-cover" style="background-position:${thumbPos(i)}">
         <span class="p-loader">${LOADER_ICON[s.loader || 'vanilla'] || ''}${loaderLabel(s)}</span>
-        ${isSel ? `<span class="p-sel">${CHECK}Selected</span>` : ''}
+        ${G(s.id).state !== 'idle' ? `<span class="p-sel live"><span class="dot-on"></span>${G(s.id).state === 'running' ? 'Playing' : 'Starting'}</span>` : isSel ? `<span class="p-sel">${CHECK}Selected</span>` : ''}
       </div>
       <div class="p-body">
         <div class="p-head"><span class="p-icon big" style="${iconStyle(s.color, s.icon)}">${s.icon ? '' : esc(initials(s.name))}</span>
           <div class="p-title"><h3 title="${esc(s.name)}">${esc(s.name)}</h3><div class="p-ver"><span class="pill">${esc(s.version)}</span>${s.loaderVersion ? `<span class="pill dim">${esc(s.loaderVersion)}</span>` : ''}</div></div></div>
         <div class="p-meta">${srv}<span class="sub p-ago">${CLOCK}${ago(s.lastPlayed)}</span><span class="sub p-time tnum">${s.playMs ? `${fmtDur(s.playMs)} played` : 'No playtime yet'}${playBars(s)}</span></div>
         <div class="p-actions">
-          <button class="btn primary small" data-action="play-profile" data-id="${esc(s.id)}" ${S.state.game.state !== 'idle' ? 'disabled' : ''}>${ICON.play.replace('<svg', '<svg style="width:11px;height:12px;fill:currentColor;stroke:none"')}Play</button>
+          <button class="btn primary small" data-action="play-profile" data-id="${esc(s.id)}" ${G(s.id).state !== 'idle' ? 'disabled' : ''}>${ICON.play.replace('<svg', '<svg style="width:11px;height:12px;fill:currentColor;stroke:none"')}Play</button>
           ${isSel ? '' : `<button class="btn soft small" data-action="select-server" data-id="${esc(s.id)}">Select</button>`}
           <span style="flex:1"></span>
           ${act('manage', s.id, 'Worlds, screenshots and servers', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>')}
@@ -386,7 +391,7 @@ function browseRow(h) {
 function pageMods() {
   const s = selected(); const vanilla = s.loader === 'vanilla';
   if (vanilla) { if (S.modTab !== 'packs') S.modTab = 'browse'; if (S.browseType !== 'modpack') S.browseType = 'resourcepack'; }
-  const head = `<header class="page-head"><h1>${vanilla ? 'Resource packs' : 'Mods'}</h1><p>${esc(s.name)} · ${esc(s.version)} ${loaderLabel(s)}${!vanilla && S.mods ? ` · ${shownMods().length} installed` : ''}${vanilla ? ' · vanilla profiles take resource packs only' : ''}</p></header>`;
+  const head = `<header class="page-head"><h1>${vanilla ? 'Resource packs' : 'Mods'}</h1><p>${esc(s.name)} · ${esc(s.version)} ${loaderLabel(s)}${s.loaderVersion ? ` ${esc(s.loaderVersion)}` : ''}${!vanilla && S.mods ? ` · ${shownMods().length} installed` : ''}${vanilla ? ' · vanilla profiles take resource packs only' : ''} · <button class="linkish" data-action="edit-server" data-id="${esc(s.id)}">${vanilla ? 'Change version' : 'Change version or loader'}</button></p></header>`;
   const updCount = S.updates ? S.updates.length : 0;
   let body;
   if (S.modTab === 'browse') {
@@ -399,6 +404,7 @@ function pageMods() {
       : `<div class="empty"><strong>Nothing found</strong>No ${S.browseType === 'mod' ? 'mods' : S.browseType === 'shader' ? 'shaders' : 'resource packs'} match for Minecraft ${esc(s.version)}.</div>`;
     body = `<div class="card list"><div class="browse-bar">
       <div class="seg" role="radiogroup" aria-label="Project type">${types.map(([k, l]) => `<button role="radio" aria-checked="${S.browseType === k}" data-action="browse-type" data-v="${k}">${l}</button>`).join('')}</div>
+      ${S.browseType === 'modpack' ? `<label class="sort"><span class="sub">Minecraft</span><select id="pack-mc" class="input" aria-label="Minecraft version"><option value="">Any version</option>${(S.versions ? S.versions.versions.filter((v) => v.type === 'release') : []).map((v) => `<option value="${esc(v.id)}" ${S.packMc === v.id ? 'selected' : ''}>${esc(v.id)}</option>`).join('')}</select></label>` : ''}
       <label class="sort"><span class="sub">Sort</span><select id="browse-sort" class="input" aria-label="Sort results">${[['relevance', 'Relevance'], ['downloads', 'Downloads'], ['follows', 'Follows'], ['newest', 'Newest'], ['updated', 'Recently updated']].map(([k, l]) => `<option value="${k}" ${S.browseSort === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <span class="sub tnum" style="margin-left:auto">${S.browseTotal ? `${compact(S.browseTotal)} results on Modrinth` : ''}</span>
     </div><div class="list-body">${rows}</div></div>`;
@@ -515,8 +521,8 @@ function pageSettings() {
 
 /* ---------------- launch check and crash popups ---------------- */
 async function startLaunch(id, join) {
-  S.launchError = ''; S.state.game.state = 'preparing'; S.state.game.progress = { stage: 'Getting ready', done: 0, total: 1 }; render();
-  try { await api('POST', '/api/launch', { serverId: id, join: join || '' }); } catch (e) { S.launchError = e.message; S.state.game.state = 'idle'; render(); }
+  S.launchError = ''; setG(id, { state: 'preparing', progress: { stage: 'Getting ready', done: 0, total: 1 } }); render();
+  try { await api('POST', '/api/launch', { serverId: id, join: join || '' }); } catch (e) { S.launchError = e.message; setG(id, { state: 'idle', progress: null }); render(); }
 }
 // One row per problem, with a Delete button for each mod involved (two copies show both, so you pick which one goes).
 function chkRows(problems) {
@@ -540,7 +546,7 @@ function crashModal(ev) {
     <p class="sub" style="margin:12px 0 0">${esc(c ? c.hint : ev.error || '')}</p>
     <div class="modal-actions"><button class="btn" data-action="close">Close</button>${c && c.kind === 'mods' || c && c.kind === 'mixin' ? '<button class="btn" data-action="go-mods">Open mods</button>' : ''}${S.logs.length ? '<button class="btn" data-action="log-upload" title="Upload the game log to mclo.gs and copy the link">Upload log</button>' : ''}<button class="btn primary" data-action="go-logs">View logs</button></div>`, true);
   if (c && (c.kind === 'mods' || c.kind === 'mixin')) {
-    const sid = (S.state.game && S.state.game.serverId) || selected().id; S.launchChk = { id: sid, outdated: [], name: '' };
+    const sid = ev.serverId || selected().id; S.launchChk = { id: sid, outdated: [], name: '' };
     api('GET', `/api/launch-check?server=${encodeURIComponent(sid)}`).then((chk) => { const el = $('#crash-fix'); if (el && chk.problems.length) el.innerHTML = `<div class="chk-block err"><b>Found in your mods</b><ul>${chkRows(chk.problems)}</ul></div>`; }).catch(() => {});
   }
 }
@@ -604,7 +610,7 @@ function mgBody(s) {
       <div class="inline mg-foot"><button class="btn small" data-action="mg-shot">${ICON.folder}Open screenshots folder</button></div>`;
   }
   if (MG.tab === 'servers') {
-    const idle = S.state.game.state === 'idle';
+    const idle = G(MG.id).state === 'idle';
     const rows = (s.serverList || []).map((x, i) => {
       const p = MG.pings[x.address];
       const st = p === undefined || p === null ? '<span class="spinner"></span>Checking…' : !p.online ? '<span style="color:var(--err)">Offline</span>'
@@ -707,6 +713,29 @@ function mgExtraBody(s) {
     <p class="sub mg-note">Video settings are written to this profile's options.txt, so you can still change them in game afterwards.</p>`;
 }
 
+// Modpacks often have builds for several Minecraft versions: pick one, then the pack version for it.
+async function packModal(id, title) {
+  S.packPick = { id, title, versions: null };
+  modal(`<h2>Install ${esc(title)}</h2><p class="sub" style="margin:6px 0 0">It becomes a new profile with its own folder.</p><div id="pk-body">${SPIN('Finding versions…')}</div>`);
+  let list = [];
+  try { list = await api('GET', `/api/modpacks/versions?projectId=${encodeURIComponent(id)}`); } catch (e) { toast(e.message, true); }
+  if (!S.packPick || S.packPick.id !== id) return;
+  S.packPick.versions = list;
+  const mcs = [...new Set(list.flatMap((v) => v.gameVersions))].sort((a, b) => cmpVer(b, a));
+  const want = S.packMc && mcs.includes(S.packMc) ? S.packMc : mcs[0];
+  const box = $('#pk-body'); if (!box) return;
+  box.innerHTML = list.length ? `<div class="form-grid"><label for="pk-mc">Minecraft</label><select class="input" id="pk-mc">${mcs.map((m) => `<option value="${esc(m)}" ${m === want ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+      <label for="pk-ver">Pack version</label><select class="input" id="pk-ver"></select></div>
+      <div class="modal-actions"><button class="btn" data-action="close">Cancel</button><button class="btn primary" data-action="pack-go">Install</button></div>`
+    : '<div class="sub mg-empty">This modpack has no versions to install.</div><div class="modal-actions"><button class="btn" data-action="close">Close</button></div>';
+  if (list.length) packVersionOptions();
+}
+function packVersionOptions() {
+  const P = S.packPick; const mc = ($('#pk-mc') || {}).value; const sel = $('#pk-ver'); if (!P || !sel) return;
+  const fits = P.versions.filter((v) => v.gameVersions.includes(mc));
+  sel.innerHTML = fits.map((v, i) => `<option value="${esc(v.id)}">${esc(v.number)}${v.loaders.length ? ` · ${esc(v.loaders.map((l) => LOADER_NAMES[l] || l).join(', '))}` : ''}${i === 0 ? ' · newest' : ''}</option>`).join('');
+}
+
 let depResolve = null;
 // Asks before removing or turning off a mod that other installed mods list as required.
 async function confirmDependents(file, verb) {
@@ -742,6 +771,14 @@ async function pmJavaLoad(s) {
 
 /* ---------------- game logs ---------------- */
 const LOG_MAX = 5000, LOG_SHOWN = 2500;
+// Each profile's game keeps its own log; S.logs, S.logCounts and S.logSeq always mean the log on screen (S.logSid).
+S.logBufs = {}; S.logSid = '';
+const logBuf = (sid) => (S.logBufs[sid || ''] = S.logBufs[sid || ''] || { logs: [], counts: { info: 0, warn: 0, error: 0, debug: 0 }, seq: 0 });
+Object.defineProperties(S, {
+  logs: { get: () => logBuf(S.logSid).logs, set: (v) => { logBuf(S.logSid).logs = v; } },
+  logCounts: { get: () => logBuf(S.logSid).counts, set: (v) => { logBuf(S.logSid).counts = v; } },
+  logSeq: { get: () => logBuf(S.logSid).seq, set: (v) => { logBuf(S.logSid).seq = v; } },
+});
 Object.assign(S, { logs: [], logCounts: { info: 0, warn: 0, error: 0, debug: 0 }, logSeq: 0, logShown: 0, logLevel: 'all', logQuery: '', logFollow: true, logWrap: true, logSession: false });
 function logClassify(t, prev) {
   if (/^Caused by:/.test(t)) return 'error';
@@ -751,14 +788,15 @@ function logClassify(t, prev) {
   if (/\b(DEBUG|TRACE)\b/.test(t)) return 'debug';
   return 'info';
 }
-function logAdd(text) {
-  const prev = S.logs.length ? S.logs[S.logs.length - 1].lvl : '';
-  const e = { n: ++S.logSeq, text, lvl: logClassify(text, prev) };
-  S.logs.push(e); S.logCounts[e.lvl]++;
-  if (S.logs.length > LOG_MAX) S.logCounts[S.logs.shift().lvl]--;
+function logAdd(text, sid = S.logSid) {
+  const b = logBuf(sid);
+  const prev = b.logs.length ? b.logs[b.logs.length - 1].lvl : '';
+  const e = { n: ++b.seq, text, lvl: logClassify(text, prev) };
+  b.logs.push(e); b.counts[e.lvl]++;
+  if (b.logs.length > LOG_MAX) b.counts[b.logs.shift().lvl]--;
   return e;
 }
-function logReset() { S.logs = []; S.logSeq = 0; S.logShown = 0; S.logCounts = { info: 0, warn: 0, error: 0, debug: 0 }; if (S.page === 'logs') render(true); navLogsVisible(); }
+function logReset(sid = S.logSid) { S.logBufs[sid || ''] = null; logBuf(sid); if (sid === S.logSid) S.logShown = 0; if (S.page === 'logs') render(true); navLogsVisible(); }
 const logMatches = (e) => (S.logLevel === 'all' || e.lvl === S.logLevel) && (!S.logQuery || e.text.toLowerCase().includes(S.logQuery.toLowerCase()));
 function logHtml(e) {
   let body;
@@ -781,15 +819,15 @@ function logRepaint() {
 }
 function navLogsVisible() {
   const n = $('#nav-logs'); if (!n || !S.state) return;
-  const st = S.state.game.state;
-  n.hidden = !(st !== 'idle' || S.page === 'logs'); // only while the game is starting or running (or while you are on the page)
-  n.classList.toggle('live', st !== 'idle');
+  const live = anyGame();
+  n.hidden = !(live || S.page === 'logs'); // only while a game is starting or running (or while you are on the page)
+  n.classList.toggle('live', live);
 }
 let logRaf = 0; const logPend = [];
-function logIngest(line) { logPend.push(line); if (!logRaf) logRaf = requestAnimationFrame(logFlush); }
+function logIngest(line, sid) { logPend.push([line, sid || '']); if (!logRaf) logRaf = requestAnimationFrame(logFlush); }
 function logFlush() {
   logRaf = 0; const v = S.page === 'logs' ? $('#logview') : null; let html = '';
-  for (const l of logPend.splice(0)) { const e = logAdd(l); if (v && logMatches(e)) { html += logHtml(e); S.logShown++; } }
+  for (const [l, sid] of logPend.splice(0)) { const e = logAdd(l, sid); if (v && sid === S.logSid && logMatches(e)) { html += logHtml(e); S.logShown++; } }
   if (v) {
     if (html) { const em = v.querySelector('.log-empty'); if (em) em.remove(); v.insertAdjacentHTML('beforeend', html); while (v.childElementCount > LOG_SHOWN) v.firstElementChild.remove(); if (S.logFollow) v.scrollTop = v.scrollHeight; }
     logCounters();
@@ -798,12 +836,14 @@ function logFlush() {
 }
 function logAfterRender() { const v = $('#logview'); if (v && S.logFollow) v.scrollTop = v.scrollHeight; logCounters(); }
 function pageLogs() {
-  const g = S.state.game; const srv = servers().find((s) => s.id === g.serverId); const nm = esc(srv ? srv.name : 'Minecraft');
+  const g = G(S.logSid); const srv = servers().find((s) => s.id === S.logSid); const nm = esc(srv ? srv.name : 'Minecraft');
+  const sessions = Object.keys(S.logBufs).filter((k) => k && S.logBufs[k] && (S.logBufs[k].logs.length || G(k).state !== 'idle'));
+  const pick = sessions.length > 1 ? `<div class="seg log-pick" role="radiogroup" aria-label="Which game">${sessions.map((k) => { const x = servers().find((s) => s.id === k); return `<button role="radio" aria-checked="${k === S.logSid}" data-action="log-session" data-v="${esc(k)}">${G(k).state !== 'idle' ? '<span class="dot-on"></span>' : ''}${esc(x ? x.name : k)}</button>`; }).join('')}</div>` : '';
   const status = g.state === 'running' ? `<span class="dot-on"></span>${nm} is running` : g.state === 'preparing' ? `<span class="spinner"></span>Preparing ${nm}…`
     : S.logs.length ? 'The game is closed. Showing the last session.' : 'Nothing has run yet. Press Play and the output appears here.';
   const seg = [['all', 'All'], ['info', 'Info'], ['warn', 'Warnings'], ['error', 'Errors'], ['debug', 'Debug']].map(([k, l]) => `<button role="radio" aria-checked="${S.logLevel === k}" class="lv-${k}" data-action="log-level" data-v="${k}">${l}<span class="count">0</span></button>`).join('');
   return `<header class="page-head logs-head"><div><h1>Game logs</h1><p class="log-status">${status}</p></div>
-    <div class="inline">${g.state !== 'idle' ? '<button class="btn" data-action="stop">Stop game</button>' : ''}</div></header>
+    <div class="inline">${g.state !== 'idle' ? `<button class="btn" data-action="stop" data-id="${esc(S.logSid)}">Stop game</button>` : ''}</div></header>${pick}
   <div class="toolbar logbar"><div class="seg" role="radiogroup" aria-label="Log level">${seg}</div>
     <div class="inline"><label class="search">${ICON.search}<input id="log-search" type="search" placeholder="Search the log" aria-label="Search the log" value="${esc(S.logQuery)}"></label>
       <button class="btn small ${S.logWrap ? 'on' : ''}" data-action="log-wrap" aria-pressed="${S.logWrap}">Wrap</button>
@@ -924,7 +964,8 @@ async function searchMods(append) {
   else { S.browse = null; S.browseTotal = 0; S.browseErr = false; render(); }
   const offset = append && Array.isArray(S.browse) ? S.browse.length : 0;
   try {
-    const r = await api('GET', `/api/mods/search?server=${encodeURIComponent(s.id)}&q=${encodeURIComponent(S.modQuery)}&type=${S.browseType}&sort=${S.browseSort}&offset=${offset}`);
+    if (S.browseType === 'modpack' && !S.versions) api('GET', '/api/versions').then((v) => { S.versions = v; if (S.page === 'mods') render(); }).catch(() => {});
+    const r = await api('GET', `/api/mods/search?server=${encodeURIComponent(s.id)}&q=${encodeURIComponent(S.modQuery)}&type=${S.browseType}&sort=${S.browseSort}&offset=${offset}${S.browseType === 'modpack' && S.packMc ? `&mc=${encodeURIComponent(S.packMc)}` : ''}`);
     if (seq !== searchSeq) return;
     S.browse = append && Array.isArray(S.browse) ? S.browse.concat(r.hits) : r.hits; S.browseTotal = r.total;
     S.busy.more = false;
@@ -991,6 +1032,8 @@ async function serverModal(s) {
       <select class="input" id="pm-ram" style="width:200px"><option value="0">Default (${S.state.settings.ramGB} GB)</option>${[2, 3, 4, 6, 8, 10, 12, 16].map((g) => `<option value="${g}" ${Number(s.ramGB) === g ? 'selected' : ''}>${g} GB</option>`).join('')}</select>
       <label for="pm-java">Java</label>
       <div><select class="input" id="pm-java" style="width:100%"><option value="">Automatic</option>${s.javaPath ? `<option value="${esc(s.javaPath)}" selected>${esc(s.javaPath)}</option>` : ''}</select><div class="hint" id="pm-java-hint"></div></div>
+      ${(S.state.accounts || []).length > 1 ? `<label for="pm-account">Account</label>
+      <div><select class="input" id="pm-account" style="width:100%"><option value="">The account selected in the top corner</option>${S.state.accounts.map((a) => `<option value="${esc(a.id)}" ${s.accountId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select><div class="hint">Give each profile its own account to play several at the same time.</div></div>` : ''}
       <label for="srv-mods" id="pm-mods-label">Auto-install mods</label>
       <div id="srv-mods-field"><input class="input" id="srv-mods" style="width:100%" placeholder="Modrinth names: fabric-api, sodium" title="Installed the first time you press Play" value="${esc((s.mods || []).join(', '))}"></div>
     </div></details>
@@ -1073,11 +1116,11 @@ const actions = {
   'switch-account': async (el) => { try { Object.assign(S.state, await api('POST', '/api/auth/switch', { id: el.dataset.id })); S.skinStamp = Date.now(); imgCache.clear(); S.previewId = 'current'; S.menuOpen = false; render(); toast(`Switched to ${S.state.profile.name}`); } catch (e) { toast(e.message, true); } },
   'refresh-profile': async () => { try { S.state.profile = await api('POST', '/api/profile/refresh'); S.skinStamp = Date.now(); imgCache.clear(); S.menuOpen = false; render(); toast('Profile updated'); } catch (e) { toast(e.message, true); } },
   launch: async () => {
-    const s = selected(); if (S.state.game.state !== 'idle') return;
+    const s = selected(); if (G(s.id).state !== 'idle') return;
     if (s.loader !== 'vanilla') {
-      S.launchError = ''; S.state.game.state = 'preparing'; S.state.game.progress = { stage: 'Checking your mods', done: 0, total: 1 }; render();
+      S.launchError = ''; setG(s.id, { state: 'preparing', progress: { stage: 'Checking your mods', done: 0, total: 1 } }); render();
       let chk = null; try { chk = await api('GET', `/api/launch-check?server=${encodeURIComponent(s.id)}`); } catch {}
-      S.state.game.state = 'idle'; S.state.game.progress = null; render();
+      setG(s.id, { state: 'idle', progress: null }); render();
       if (chk && (chk.problems.length || chk.outdated.length)) return launchCheckModal(s, chk);
     }
     return startLaunch(s.id);
@@ -1085,7 +1128,7 @@ const actions = {
   'launch-anyway': () => { closeModal(); startLaunch(selected().id); },
   'launch-update': async () => {
     const c = S.launchChk; closeModal(); if (!c) return;
-    S.state.game.state = 'preparing'; S.state.game.progress = { stage: 'Updating mods', done: 0, total: 1 }; render();
+    setG(c.id, { state: 'preparing', progress: { stage: 'Updating mods', done: 0, total: 1 } }); render();
     try { await api('POST', '/api/mods/update', { server: c.id, updates: c.outdated }); S.mods = null; S.modsServer = null; } catch (e) { toast(e.message, true); }
     startLaunch(c.id);
   },
@@ -1116,7 +1159,8 @@ const actions = {
   },
   'go-mods': () => { closeModal(); go('mods'); },
   'go-logs': () => { closeModal(); go('logs'); },
-  stop: () => api('POST', '/api/stop'),
+  stop: (el) => api('POST', '/api/stop', { serverId: el.dataset.id || selected().id }),
+  'log-session': (el) => { S.logSid = el.dataset.v; S.logShown = 0; render(true); },
   logs: () => go('logs'),
   'log-level': (el) => { S.logLevel = el.dataset.v; render(true); },
   'log-wrap': (el) => { S.logWrap = !S.logWrap; el.classList.toggle('on', S.logWrap); el.setAttribute('aria-pressed', String(S.logWrap)); const v = $('#logview'); if (v) v.classList.toggle('wrap', S.logWrap); },
@@ -1140,7 +1184,7 @@ const actions = {
   },
   'server-tag': (el) => { S.serverTag = el.dataset.tag; render(); },
   'select-server': async (el) => { await saveSettings({ selectedServer: el.dataset.id }); S.mods = null; S.modsServer = null; render(); toast(`Switched to ${selected().name}`); },
-  'play-here': () => { go('home'); if (S.state.profile && S.state.game.state === 'idle') actions.launch(); },
+  'play-here': () => { go('home'); if (S.state.profile && G().state === 'idle') actions.launch(); },
   'mod-tab': (el) => { S.modTab = el.dataset.tab; S.modQuery = ''; render(); if (S.modTab === 'browse') searchMods(); if (S.modTab === 'packs' || S.modTab === 'shaders') loadPacks(); },
   'mod-toggle': async (el) => {
     const file = el.dataset.file;
@@ -1163,12 +1207,14 @@ const actions = {
     } catch (e) { toast(e.message, true); }
     delete S.busy[id]; render();
   },
-  'pack-install': async (el) => {
-    const id = el.dataset.id; S.busy[id] = true; render();
+  'pack-install': (el) => packModal(el.dataset.id, el.dataset.title || 'Modpack'),
+  'pack-go': async (el) => {
+    const P = S.packPick; if (!P) return; const versionId = $('#pk-ver').value;
+    el.disabled = true; el.innerHTML = '<span class="spinner"></span>Installing…'; S.busy[P.id] = true;
     toast('Downloading the modpack. Big packs take a few minutes.');
-    try { await importDone(await api('POST', '/api/modpacks/install', { projectId: id }), el.dataset.title || 'Modpack'); }
-    catch (e) { toast(e.message, true); }
-    delete S.busy[id]; render();
+    try { await importDone(await api('POST', '/api/modpacks/install', { projectId: P.id, versionId }), P.title); }
+    catch (e) { toast(e.message, true); el.disabled = false; el.textContent = 'Install'; }
+    delete S.busy[P.id]; render();
   },
   manage: (el) => manageModal(el.dataset.id),
   'profile-shortcut': async (el) => {
@@ -1309,7 +1355,7 @@ const actions = {
   'play-profile': async (el) => {
     if (el.dataset.id !== S.state.settings.selectedServer) { await saveSettings({ selectedServer: el.dataset.id }); S.mods = null; S.modsServer = null; }
     go('home');
-    if (!S.state.profile) signIn(); else if (S.state.game.state === 'idle') actions.launch();
+    if (!S.state.profile) signIn(); else if (G().state === 'idle') actions.launch();
   },
   win: (el) => NATIVE ? hostSend(el.dataset.v) : api('POST', '/api/window', { action: el.dataset.v }).catch(() => {}),
   'pm-loader': (el) => { PM.loader = el.dataset.v; PM.loaderVersion = ''; pmLoaderUi(); pmLoaderVersions(); },
@@ -1334,7 +1380,7 @@ const actions = {
   },
   'srv-save': async () => {
     const body = { id: PM.id || undefined, name: $('#srv-name').value, address: $('#srv-address').value, version: ($('#srv-version') || {}).value || PM.version,
-      client: true, loader: PM.loader, loaderVersion: PM.loader === 'vanilla' ? '' : ($('#pm-loader-version') || {}).value || '', mods: $('#srv-mods').value, color: PM.color, icon: PM.icon, ramGB: Number($('#pm-ram').value) || 0, javaPath: ($('#pm-java') || {}).value || '' };
+      client: true, loader: PM.loader, loaderVersion: PM.loader === 'vanilla' ? '' : ($('#pm-loader-version') || {}).value || '', mods: $('#srv-mods').value, color: PM.color, icon: PM.icon, ramGB: Number($('#pm-ram').value) || 0, javaPath: ($('#pm-java') || {}).value || '', ...($('#pm-account') ? { accountId: $('#pm-account').value } : {}) };
     try {
       const r = await api('POST', '/api/servers/save', body); S.state.config.servers = r.servers;
       if (!body.id) await saveSettings({ selectedServer: r.id });
@@ -1392,6 +1438,8 @@ document.addEventListener('change', async (e) => {
   if (t.id === 'pm-java' || t.id === 'srv-version') pmJavaHint();
   if (t.id === 'accent-custom') { applyAccent(t.value); await saveSettings({ accent: t.value }); render(); }
   if (t.id === 'browse-sort') { S.browseSort = t.value; searchMods(); }
+  else if (t.id === 'pack-mc') { S.packMc = t.value; searchMods(); }
+  else if (t.id === 'pk-mc') packVersionOptions();
   else if (t.id === 'profile-sort') { S.profileSort = t.value; render(); }
   else if (t.id === 'mods-ram' || t.id === 'set-ram') await saveSettings({ ramGB: Number(t.value) });
   else if (t.dataset && t.dataset.setting) { const k = t.dataset.setting; await saveSettings({ [k]: t.type === 'number' ? Number(t.value) : t.value.trim() }); toast('Saved'); }
@@ -1432,13 +1480,14 @@ function connectEvents() {
   const es = new EventSource(`/api/events?token=${TOKEN}`);
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'progress') { S.state.game.progress = ev; if (S.page === 'home') render(); }
+    if (ev.type === 'progress') { if (ev.serverId) { setG(ev.serverId, { progress: ev }); if (S.page === 'home' || S.page === 'servers') render(); } }
     else if (ev.type === 'game') {
-      S.state.game.state = ev.state; if (ev.serverId) S.state.game.serverId = ev.serverId;
-      if (ev.state === 'preparing' && !S.logSession) { S.logSession = true; logReset(); }
-      if (ev.state === 'idle') S.logSession = false;
-      if (ev.state === 'idle' && (ev.crash || ev.error)) crashModal(ev);
-      if (ev.error) S.launchError = ev.error;
+      const sid = ev.serverId; const was = G(sid).state;
+      setG(sid, { state: ev.state, account: ev.account || '', ...(ev.state === 'idle' ? { progress: null } : {}) });
+      if (ev.state === 'preparing' && was !== 'running' && !(S.logBufs[sid] && S.logBufs[sid].live)) { logReset(sid); logBuf(sid).live = true; S.logSid = sid; }
+      if (ev.state === 'idle') logBuf(sid).live = false;
+      if (ev.state === 'idle' && (ev.crash || ev.error)) { S.logSid = sid; crashModal(ev); }
+      if (ev.error && sid === selected().id) S.launchError = ev.error;
       if (ev.state === 'running') { S.launchError = ''; toast('Minecraft is starting'); }
       if (ev.state === 'idle' && S.page === 'mods') loadMods(true);
       render();
@@ -1446,7 +1495,7 @@ function connectEvents() {
       if (ev.status === 'success') { S.authActive = false; S.state.profile = ev.profile; S.state.accounts = ev.accounts; S.skinStamp = Date.now(); imgCache.clear(); closeModal(); render(); toast(`Signed in as ${ev.profile.name}`); }
       else if (ev.status === 'error') { S.authActive = false; modal(`<h2>Sign-in failed</h2><p>${esc(ev.message)}</p><div class="modal-actions"><button class="btn" data-action="close">Close</button><button class="btn primary" data-action="signin">Try again</button></div>`); }
       else if (ev.status === 'working') { const st = $('#auth-status'); if (st) st.innerHTML = '<span class="spinner"></span>Signed in to Microsoft. Checking your Minecraft account…'; }
-    } else if (ev.type === 'log') logIngest(ev.line);
+    } else if (ev.type === 'log') logIngest(ev.line, ev.serverId);
     else if (ev.type === 'quit') { window.close(); }
     else if (ev.type === 'notice') { toast(ev.message); }
     else if (ev.type === 'autoplay') autoPlay(ev.id);
@@ -1609,7 +1658,10 @@ async function revealWhenLoaded() {
   applyAccent(S.state.settings.accent);
   render(); connectEvents(); loadPings(); revealWhenLoaded();
   if (S.state.autoPlay) autoPlay(S.state.autoPlay);
-  api('GET', '/api/logs').then((r) => { (r.lines || []).forEach(logAdd); render(); }).catch(() => {});
+  api('GET', '/api/logs').then((r) => {
+    for (const [sid, lines] of Object.entries(r.games || {})) { lines.forEach((l) => logAdd(l, sid)); if (!S.logSid || G(sid).state !== 'idle') S.logSid = sid; }
+    render();
+  }).catch(() => {});
   setInterval(() => { if (S.page === 'home' || S.page === 'servers') loadPings(); }, 30000);
   setInterval(checkModsFolder, 1500);
   window.addEventListener('focus', checkModsFolder);
@@ -1620,7 +1672,7 @@ async function autoPlay(id) {
   if (!servers().some((x) => x.id === id)) return;
   S.state.settings.selectedServer = id; S.mods = null; S.modsServer = null;
   go('home');
-  if (!S.state.profile) signIn(); else if (S.state.game.state === 'idle') actions.launch();
+  if (!S.state.profile) signIn(); else if (G().state === 'idle') actions.launch();
 }
 async function checkForUpdate() {
   try {
