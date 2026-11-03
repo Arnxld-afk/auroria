@@ -3,3 +3,4 @@ dist/
 package/
 *.tgz
 site/Auroria.exe
+/target/

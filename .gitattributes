@@ -1,0 +1,2 @@
+# The window host source is hashed into a cache file name; keep its bytes the same on every checkout.
+src/host/* text eol=lf
