@@ -14,15 +14,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.20.0
-      - run: npm ci
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup default 1.88.0
       - name: Build Auroria.exe
-        shell: pwsh
-        run: node build.mjs (Get-Command node).Source
+        run: cargo build --release --locked
       - uses: actions/upload-artifact@v4
         with:
           name: Auroria-${{ github.ref_name }}
-          path: dist/Auroria.exe
+          path: target/release/Auroria.exe
           if-no-files-found: error

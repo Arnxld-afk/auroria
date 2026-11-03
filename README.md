@@ -87,27 +87,25 @@ By default Auroria signs in through the Minecraft Launcher's public app ID, so M
 
 ## Build from source
 
-Needs Node 22 on any OS.
+Needs Rust 1.88 or newer with the MSVC toolchain, on Windows.
 
 ```bash
-npm install
-npm pack node-win-x64@22.20.0 && tar xzf node-win-x64-22.20.0.tgz
-node build.mjs package/bin/node.exe
+cargo build --release
 ```
 
-Output: `dist/Auroria.exe`. The build fails if that exe is running, so close it first. Set `AURORIA_OUT` to write a different file name.
+Output: `target/release/Auroria.exe`. The build fails if that exe is running, so close it first, or set `CARGO_TARGET_DIR` to build somewhere else.
 
-For development without a window:
+For development without a window, and without touching the Start menu or desktop:
 
 ```bash
-AURORIA_NO_WINDOW=1 node src/main.js
+AURORIA_NO_WINDOW=1 AURORIA_DEV=1 target/release/Auroria.exe
 ```
 
-then open the printed URL.
+then open the printed URL. Set `APPDATA` to a scratch folder to keep your real profiles out of it.
 
 ## How it works
 
-Auroria is a Node single-executable app. A small local HTTP server handles launching, downloads and the Mojang, Microsoft and Modrinth APIs, and the interface (plain HTML, CSS and JS) runs in a native WebView2 window.
+Auroria is one Rust executable. A small local HTTP server handles launching, downloads and the Mojang, Microsoft and Modrinth APIs, and the interface (plain HTML, CSS and JS, built into the exe) runs in a native WebView2 window. The window host is a small C# program that Auroria compiles once with the `csc.exe` that ships with Windows.
 
 ## Uninstall
 
